@@ -842,7 +842,7 @@ public abstract class ByteBuf implements ReferenceCounted, Comparable<ByteBuf> {
      *         if the specified {@code index} is less than {@code 0} or
      *         {@code index + 3} is greater than {@code this.capacity}
      */
-    public abstract ByteBuf setMedium(int index, int value);
+    public abstract ByteBuf setMedium(int index, int   value);
 
     /**
      * Sets the specified 32-bit integer at the specified absolute
@@ -854,7 +854,7 @@ public abstract class ByteBuf implements ReferenceCounted, Comparable<ByteBuf> {
      *         if the specified {@code index} is less than {@code 0} or
      *         {@code index + 4} is greater than {@code this.capacity}
      */
-    public abstract ByteBuf setInt(int index, int value);
+    public abstract ByteBuf setInt(int index, int   value);
 
     /**
      * Sets the specified 64-bit long integer at the specified absolute
@@ -866,7 +866,7 @@ public abstract class ByteBuf implements ReferenceCounted, Comparable<ByteBuf> {
      *         if the specified {@code index} is less than {@code 0} or
      *         {@code index + 8} is greater than {@code this.capacity}
      */
-    public abstract ByteBuf setLong(int index, long value);
+    public abstract ByteBuf setLong(int index, long  value);
 
     /**
      * Sets the specified 2-byte UTF-16 character at the specified absolute
@@ -1364,7 +1364,7 @@ public abstract class ByteBuf implements ReferenceCounted, Comparable<ByteBuf> {
      * @throws IndexOutOfBoundsException
      *         if {@code this.writableBytes} is less than {@code 3}
      */
-    public abstract ByteBuf writeMedium(int value);
+    public abstract ByteBuf writeMedium(int   value);
 
     /**
      * Sets the specified 32-bit integer at the current {@code writerIndex}
@@ -1373,7 +1373,7 @@ public abstract class ByteBuf implements ReferenceCounted, Comparable<ByteBuf> {
      * @throws IndexOutOfBoundsException
      *         if {@code this.writableBytes} is less than {@code 4}
      */
-    public abstract ByteBuf writeInt(int value);
+    public abstract ByteBuf writeInt(int   value);
 
     /**
      * Sets the specified 64-bit long integer at the current
@@ -1383,7 +1383,7 @@ public abstract class ByteBuf implements ReferenceCounted, Comparable<ByteBuf> {
      * @throws IndexOutOfBoundsException
      *         if {@code this.writableBytes} is less than {@code 8}
      */
-    public abstract ByteBuf writeLong(long value);
+    public abstract ByteBuf writeLong(long  value);
 
     /**
      * Sets the specified 2-byte UTF-16 character at the current
@@ -1688,14 +1688,12 @@ public abstract class ByteBuf implements ReferenceCounted, Comparable<ByteBuf> {
      * Returns a buffer which shares the whole region of this buffer.
      * Modifying the content of the returned buffer or this buffer affects
      * each other's content while they maintain separate indexes and marks.
+     * This method is identical to {@code buf.slice(0, buf.capacity())}.
      * This method does not modify {@code readerIndex} or {@code writerIndex} of
      * this buffer.
      * <p>
      * The reader and writer marks will not be duplicated. Also be aware that this method will
      * NOT call {@link #retain()} and so the reference count will NOT be increased.
-     * @return A buffer whose readable content is equivalent to the buffer returned by {@link #slice()}.
-     * However this buffer will share the capacity of the underlying buffer, and therefore allows access to all of the
-     * underlying content if necessary.
      */
     public abstract ByteBuf duplicate();
 
@@ -1715,13 +1713,13 @@ public abstract class ByteBuf implements ReferenceCounted, Comparable<ByteBuf> {
     public abstract int nioBufferCount();
 
     /**
-     * Exposes this buffer's readable bytes as an NIO {@link ByteBuffer}. The returned buffer
-     * either share or contains the copied content of this buffer, while changing the position
-     * and limit of the returned NIO buffer does not affect the indexes and marks of this buffer.
-     * This method is identical to {@code buf.nioBuffer(buf.readerIndex(), buf.readableBytes())}.
-     * This method does not modify {@code readerIndex} or {@code writerIndex} of this buffer.
-     * Please note that the returned NIO buffer will not see the changes of this buffer if this buffer
-     * is a dynamic buffer and it adjusted its capacity.
+     * Exposes this buffer's readable bytes as an NIO {@link ByteBuffer}.  The returned buffer
+     * shares the content with this buffer, while changing the position and limit of the returned
+     * NIO buffer does not affect the indexes and marks of this buffer.  This method is identical
+     * to {@code buf.nioBuffer(buf.readerIndex(), buf.readableBytes())}.  This method does not
+     * modify {@code readerIndex} or {@code writerIndex} of this buffer.  Please note that the
+     * returned NIO buffer will not see the changes of this buffer if this buffer is a dynamic
+     * buffer and it adjusted its capacity.
      *
      * @throws UnsupportedOperationException
      *         if this buffer cannot create a {@link ByteBuffer} that shares the content with itself
@@ -1733,12 +1731,12 @@ public abstract class ByteBuf implements ReferenceCounted, Comparable<ByteBuf> {
     public abstract ByteBuffer nioBuffer();
 
     /**
-     * Exposes this buffer's sub-region as an NIO {@link ByteBuffer}. The returned buffer
-     * either share or contains the copied content of this buffer, while changing the position
-     * and limit of the returned NIO buffer does not affect the indexes and marks of this buffer.
-     * This method does not modify {@code readerIndex} or {@code writerIndex} of this buffer.
-     * Please note that the returned NIO buffer will not see the changes of this buffer if this buffer
-     * is a dynamic buffer and it adjusted its capacity.
+     * Exposes this buffer's sub-region as an NIO {@link ByteBuffer}.  The returned buffer
+     * shares the content with this buffer, while changing the position and limit of the returned
+     * NIO buffer does not affect the indexes and marks of this buffer.  This method does not
+     * modify {@code readerIndex} or {@code writerIndex} of this buffer.  Please note that the
+     * returned NIO buffer will not see the changes of this buffer if this buffer is a dynamic
+     * buffer and it adjusted its capacity.
      *
      * @throws UnsupportedOperationException
      *         if this buffer cannot create a {@link ByteBuffer} that shares the content with itself
@@ -1755,12 +1753,12 @@ public abstract class ByteBuf implements ReferenceCounted, Comparable<ByteBuf> {
     public abstract ByteBuffer internalNioBuffer(int index, int length);
 
     /**
-     * Exposes this buffer's readable bytes as an NIO {@link ByteBuffer}'s. The returned buffer
-     * either share or contains the copied content of this buffer, while changing the position
-     * and limit of the returned NIO buffer does not affect the indexes and marks of this buffer.
-     * This method does not modify {@code readerIndex} or {@code writerIndex} of this buffer.
-     * Please note that the returned NIO buffer will not see the changes of this buffer if this buffer
-     * is a dynamic buffer and it adjusted its capacity.
+     * Exposes this buffer's readable bytes as an NIO {@link ByteBuffer}'s.  The returned buffer
+     * shares the content with this buffer, while changing the position and limit of the returned
+     * NIO buffer does not affect the indexes and marks of this buffer. This method does not
+     * modify {@code readerIndex} or {@code writerIndex} of this buffer.  Please note that the
+     * returned NIO buffer will not see the changes of this buffer if this buffer is a dynamic
+     * buffer and it adjusted its capacity.
      *
      *
      * @throws UnsupportedOperationException
@@ -1774,9 +1772,9 @@ public abstract class ByteBuf implements ReferenceCounted, Comparable<ByteBuf> {
 
     /**
      * Exposes this buffer's bytes as an NIO {@link ByteBuffer}'s for the specified index and length
-     * The returned buffer either share or contains the copied content of this buffer, while changing
-     * the position and limit of the returned NIO buffer does not affect the indexes and marks of this buffer.
-     * This method does not modify {@code readerIndex} or {@code writerIndex} of this buffer. Please note that the
+     * The returned buffer shares the content with this buffer, while changing the position and limit
+     * of the returned NIO buffer does not affect the indexes and marks of this buffer. This method does
+     * not modify {@code readerIndex} or {@code writerIndex} of this buffer.  Please note that the
      * returned NIO buffer will not see the changes of this buffer if this buffer is a dynamic
      * buffer and it adjusted its capacity.
      *
@@ -1873,7 +1871,7 @@ public abstract class ByteBuf implements ReferenceCounted, Comparable<ByteBuf> {
 
     /**
      * Compares the content of the specified buffer to the content of this
-     * buffer. Comparison is performed in the same manner with the string
+     * buffer.  Comparison is performed in the same manner with the string
      * comparison functions of various languages such as {@code strcmp},
      * {@code memcmp} and {@link String#compareTo(String)}.
      */

@@ -16,15 +16,18 @@
 package io.netty.util.internal;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Formatter;
+import java.util.List;
 
-import static io.netty.util.internal.ObjectUtil.*;
+import static io.netty.util.internal.ObjectUtil.checkNotNull;
 
 /**
  * String utility class.
  */
 public final class StringUtil {
 
-    public static final String NEWLINE = SystemPropertyUtil.get("line.separator", "\n");
+    public static final String NEWLINE;
     public static final char DOUBLE_QUOTE = '\"';
     public static final char COMMA = ',';
     public static final char LINE_FEED = '\n';
@@ -41,26 +44,130 @@ public final class StringUtil {
     private static final char PACKAGE_SEPARATOR_CHAR = '.';
 
     static {
+        // Determine the newline character of the current platform.
+        String newLine;
+
+        Formatter formatter = new Formatter();
+        try {
+            newLine = formatter.format("%n").toString();
+        } catch (Exception e) {
+            // Should not reach here, but just in case.
+            newLine = "\n";
+        } finally {
+            formatter.close();
+        }
+
+        NEWLINE = newLine;
+
         // Generate the lookup table that converts a byte into a 2-digit hexadecimal integer.
         int i;
         for (i = 0; i < 10; i ++) {
-            BYTE2HEX_PAD[i] = "0" + i;
+            StringBuilder buf = new StringBuilder(2);
+            buf.append('0');
+            buf.append(i);
+            BYTE2HEX_PAD[i] = buf.toString();
             BYTE2HEX_NOPAD[i] = String.valueOf(i);
         }
         for (; i < 16; i ++) {
+            StringBuilder buf = new StringBuilder(2);
             char c = (char) ('a' + i - 10);
-            BYTE2HEX_PAD[i] = "0" + c;
+            buf.append('0');
+            buf.append(c);
+            BYTE2HEX_PAD[i] = buf.toString();
             BYTE2HEX_NOPAD[i] = String.valueOf(c);
         }
         for (; i < BYTE2HEX_PAD.length; i ++) {
-            String str = Integer.toHexString(i);
+            StringBuilder buf = new StringBuilder(2);
+            buf.append(Integer.toHexString(i));
+            String str = buf.toString();
             BYTE2HEX_PAD[i] = str;
             BYTE2HEX_NOPAD[i] = str;
         }
     }
 
-    private StringUtil() {
-        // Unused.
+    /**
+     * Splits the specified {@link String} with the specified delimiter.  This operation is a simplified and optimized
+     * version of {@link String#split(String)}.
+     */
+    public static String[] split(String value, char delim) {
+        final int end = value.length();
+        final List<String> res = new ArrayList<String>();
+
+        int start = 0;
+        for (int i = 0; i < end; i ++) {
+            if (value.charAt(i) == delim) {
+                if (start == i) {
+                    res.add(EMPTY_STRING);
+                } else {
+                    res.add(value.substring(start, i));
+                }
+                start = i + 1;
+            }
+        }
+
+        if (start == 0) { // If no delimiter was found in the value
+            res.add(value);
+        } else {
+            if (start != end) {
+                // Add the last element if it's not empty.
+                res.add(value.substring(start, end));
+            } else {
+                // Truncate trailing empty elements.
+                for (int i = res.size() - 1; i >= 0; i --) {
+                    if (res.get(i).isEmpty()) {
+                        res.remove(i);
+                    } else {
+                        break;
+                    }
+                }
+            }
+        }
+
+        return res.toArray(new String[res.size()]);
+    }
+
+    /**
+     * Splits the specified {@link String} with the specified delimiter in maxParts maximum parts.
+     * This operation is a simplified and optimized
+     * version of {@link String#split(String, int)}.
+     */
+    public static String[] split(String value, char delim, int maxParts) {
+        final int end = value.length();
+        final List<String> res = new ArrayList<String>();
+
+        int start = 0;
+        int cpt = 1;
+        for (int i = 0; i < end && cpt < maxParts; i ++) {
+            if (value.charAt(i) == delim) {
+                if (start == i) {
+                    res.add(EMPTY_STRING);
+                } else {
+                    res.add(value.substring(start, i));
+                }
+                start = i + 1;
+                cpt++;
+            }
+        }
+
+        if (start == 0) { // If no delimiter was found in the value
+            res.add(value);
+        } else {
+            if (start != end) {
+                // Add the last element if it's not empty.
+                res.add(value.substring(start, end));
+            } else {
+                // Truncate trailing empty elements.
+                for (int i = res.size() - 1; i >= 0; i --) {
+                    if (res.get(i).isEmpty()) {
+                        res.remove(i);
+                    } else {
+                        break;
+                    }
+                }
+            }
+        }
+
+        return res.toArray(new String[res.size()]);
     }
 
     /**
@@ -207,69 +314,6 @@ public final class StringUtil {
     }
 
     /**
-     * Helper to decode half of a hexadecimal number from a string.
-     * @param c The ASCII character of the hexadecimal number to decode.
-     * Must be in the range {@code [0-9a-fA-F]}.
-     * @return The hexadecimal value represented in the ASCII character
-     * given, or {@code -1} if the character is invalid.
-     */
-    public static int decodeHexNibble(final char c) {
-        // Character.digit() is not used here, as it addresses a larger
-        // set of characters (both ASCII and full-width latin letters).
-        if (c >= '0' && c <= '9') {
-            return c - '0';
-        }
-        if (c >= 'A' && c <= 'F') {
-            return c - 'A' + 0xA;
-        }
-        if (c >= 'a' && c <= 'f') {
-            return c - 'a' + 0xA;
-        }
-        return -1;
-    }
-
-    /**
-     * Decode a 2-digit hex byte from within a string.
-     */
-    public static byte decodeHexByte(CharSequence s, int pos) {
-        int hi = decodeHexNibble(s.charAt(pos));
-        int lo = decodeHexNibble(s.charAt(pos + 1));
-        if (hi == -1 || lo == -1) {
-            throw new IllegalArgumentException(String.format(
-                    "invalid hex byte '%s' at index %d of '%s'", s.subSequence(pos, pos + 2), pos, s));
-        }
-        return (byte) ((hi << 4) + lo);
-    }
-
-    /**
-     * Decodes part of a string with <a href="http://en.wikipedia.org/wiki/Hex_dump">hex dump</a>
-     *
-     * @param hexDump a {@link CharSequence} which contains the hex dump
-     * @param fromIndex start of hex dump in {@code hexDump}
-     * @param length hex string length
-     */
-    public static byte[] decodeHexDump(CharSequence hexDump, int fromIndex, int length) {
-        if (length < 0 || (length & 1) != 0) {
-            throw new IllegalArgumentException("length: " + length);
-        }
-        if (length == 0) {
-            return EmptyArrays.EMPTY_BYTES;
-        }
-        byte[] bytes = new byte[length >>> 1];
-        for (int i = 0; i < length; i += 2) {
-            bytes[i >>> 1] = decodeHexByte(hexDump, fromIndex + i);
-        }
-        return bytes;
-    }
-
-    /**
-     * Decodes a <a href="http://en.wikipedia.org/wiki/Hex_dump">hex dump</a>
-     */
-    public static byte[] decodeHexDump(CharSequence hexDump) {
-        return decodeHexDump(hexDump, 0, hexDump.length());
-    }
-
-    /**
      * The shortcut to {@link #simpleClassName(Class) simpleClassName(o.getClass())}.
      */
     public static String simpleClassName(Object o) {
@@ -342,67 +386,6 @@ public final class StringUtil {
     }
 
     /**
-     * Unescapes the specified escaped CSV field, if necessary according to
-     * <a href="https://tools.ietf.org/html/rfc4180#section-2">RFC-4180</a>.
-     *
-     * @param value The escaped CSV field which will be unescaped according to
-     *              <a href="https://tools.ietf.org/html/rfc4180#section-2">RFC-4180</a>
-     * @return {@link CharSequence} the unescaped value if necessary, or the value unchanged
-     */
-    public static CharSequence unescapeCsv(CharSequence value) {
-        int length = checkNotNull(value, "value").length();
-        if (length == 0) {
-            return value;
-        }
-        int last = length - 1;
-        boolean quoted = isDoubleQuote(value.charAt(0)) && isDoubleQuote(value.charAt(last)) && length != 1;
-        if (!quoted) {
-            validateCsvFormat(value);
-            return value;
-        }
-        StringBuilder unescaped = InternalThreadLocalMap.get().stringBuilder();
-        for (int i = 1; i < last; i++) {
-            char current = value.charAt(i);
-            if (current == DOUBLE_QUOTE) {
-                if (isDoubleQuote(value.charAt(i + 1)) && (i + 1) != last) {
-                    // Followed by a double-quote but not the last character
-                    // Just skip the next double-quote
-                    i++;
-                } else {
-                    // Not followed by a double-quote or the following double-quote is the last character
-                    throw newInvalidEscapedCsvFieldException(value, i);
-                }
-            }
-            unescaped.append(current);
-        }
-        return unescaped.toString();
-    }
-
-    /**
-     * Validate if {@code value} is a valid csv field without double-quotes.
-     *
-     * @throws IllegalArgumentException if {@code value} needs to be encoded with double-quotes.
-     */
-    private static void validateCsvFormat(CharSequence value) {
-        int length = value.length();
-        for (int i = 0; i < length; i++) {
-            switch (value.charAt(i)) {
-                case DOUBLE_QUOTE:
-                case LINE_FEED:
-                case CARRIAGE_RETURN:
-                case COMMA:
-                    // If value contains any special character, it should be enclosed with double-quotes
-                    throw newInvalidEscapedCsvFieldException(value, i);
-                default:
-            }
-        }
-    }
-
-    private static IllegalArgumentException newInvalidEscapedCsvFieldException(CharSequence value, int index) {
-        return new IllegalArgumentException("invalid escaped CSV field: " + value + " index: " + index);
-    }
-
-    /**
      * Get the length of a string, {@code null} input is considered {@code 0} length.
      */
     public static int length(String s) {
@@ -429,5 +412,9 @@ public final class StringUtil {
 
     private static boolean isDoubleQuote(char c) {
         return c == DOUBLE_QUOTE;
+    }
+
+    private StringUtil() {
+        // Unused.
     }
 }

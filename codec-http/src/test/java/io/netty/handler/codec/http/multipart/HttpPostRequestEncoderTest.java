@@ -22,7 +22,6 @@ import io.netty.handler.codec.http.DefaultFullHttpRequest;
 import io.netty.handler.codec.http.HttpContent;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpVersion;
-import io.netty.handler.codec.http.multipart.HttpPostRequestEncoder.ErrorDataEncoderException;
 import io.netty.util.CharsetUtil;
 import io.netty.util.internal.StringUtil;
 import org.junit.Test;
@@ -31,33 +30,15 @@ import java.io.File;
 import java.util.Arrays;
 import java.util.List;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.fail;
+import static org.junit.Assert.*;
 
 /** {@link HttpPostRequestEncoder} test case. */
 public class HttpPostRequestEncoderTest {
 
     @Test
-    public void testAllowedMethods() throws Exception {
-        shouldThrowExceptionIfNotAllowed(HttpMethod.CONNECT);
-        shouldThrowExceptionIfNotAllowed(HttpMethod.PUT);
-        shouldThrowExceptionIfNotAllowed(HttpMethod.POST);
-        shouldThrowExceptionIfNotAllowed(HttpMethod.PATCH);
-        shouldThrowExceptionIfNotAllowed(HttpMethod.DELETE);
-        shouldThrowExceptionIfNotAllowed(HttpMethod.GET);
-        shouldThrowExceptionIfNotAllowed(HttpMethod.HEAD);
-        shouldThrowExceptionIfNotAllowed(HttpMethod.OPTIONS);
-        try {
-            shouldThrowExceptionIfNotAllowed(HttpMethod.TRACE);
-            fail("Should raised an exception with TRACE method");
-        } catch (ErrorDataEncoderException e) {
-            // Exception is willing
-        }
-    }
-
-    private void shouldThrowExceptionIfNotAllowed(HttpMethod method) throws Exception {
+    public void testSingleFileUpload() throws Exception {
         DefaultFullHttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1,
-                method, "http://localhost");
+                HttpMethod.POST, "http://localhost");
 
         HttpPostRequestEncoder encoder = new HttpPostRequestEncoder(request, true);
         File file1 = new File(getClass().getResource("/file-01.txt").toURI());

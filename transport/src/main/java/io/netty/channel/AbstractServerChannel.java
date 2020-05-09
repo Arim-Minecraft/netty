@@ -15,6 +15,8 @@
  */
 package io.netty.channel;
 
+import io.netty.util.internal.EmptyArrays;
+
 import java.net.SocketAddress;
 
 /**

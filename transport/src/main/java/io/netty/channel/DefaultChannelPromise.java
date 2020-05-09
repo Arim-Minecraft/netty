@@ -21,8 +21,6 @@ import io.netty.util.concurrent.EventExecutor;
 import io.netty.util.concurrent.Future;
 import io.netty.util.concurrent.GenericFutureListener;
 
-import static io.netty.util.internal.ObjectUtil.checkNotNull;
-
 /**
  * The default {@link ChannelPromise} implementation.  It is recommended to use {@link Channel#newPromise()} to create
  * a new {@link ChannelPromise} rather than calling the constructor explicitly.
@@ -39,7 +37,7 @@ public class DefaultChannelPromise extends DefaultPromise<Void> implements Chann
      *        the {@link Channel} associated with this future
      */
     public DefaultChannelPromise(Channel channel) {
-        this.channel = checkNotNull(channel, "channel");
+        this.channel = channel;
     }
 
     /**
@@ -50,7 +48,7 @@ public class DefaultChannelPromise extends DefaultPromise<Void> implements Chann
      */
     public DefaultChannelPromise(Channel channel, EventExecutor executor) {
         super(executor);
-        this.channel = checkNotNull(channel, "channel");
+        this.channel = channel;
     }
 
     @Override

@@ -44,18 +44,18 @@ import java.util.concurrent.TimeUnit;
  *                                      +---------------------------+
  *                                      | Completed successfully    |
  *                                      +---------------------------+
- *                                 +---->      isDone() = true      |
- * +--------------------------+    |    |   isSuccess() = true      |
+ *                                 +---->      isDone() = <b>true</b>      |
+ * +--------------------------+    |    |   isSuccess() = <b>true</b>      |
  * |        Uncompleted       |    |    +===========================+
  * +--------------------------+    |    | Completed with failure    |
- * |      isDone() = false    |    |    +---------------------------+
- * |   isSuccess() = false    |----+---->      isDone() = true      |
- * | isCancelled() = false    |    |    |       cause() = non-null  |
- * |       cause() = null     |    |    +===========================+
+ * |      isDone() = <b>false</b>    |    |    +---------------------------+
+ * |   isSuccess() = false    |----+---->   isDone() = <b>true</b>         |
+ * | isCancelled() = false    |    |    | cause() = <b>non-null</b>     |
+ * |    cause() = null     |    |    +===========================+
  * +--------------------------+    |    | Completed by cancellation |
  *                                 |    +---------------------------+
- *                                 +---->      isDone() = true      |
- *                                      | isCancelled() = true      |
+ *                                 +---->      isDone() = <b>true</b>      |
+ *                                      | isCancelled() = <b>true</b>      |
  *                                      +---------------------------+
  * </pre>
  *
@@ -87,15 +87,15 @@ import java.util.concurrent.TimeUnit;
  *
  * <h3>Do not call {@link #await()} inside {@link ChannelHandler}</h3>
  * <p>
- * The event handler methods in {@link ChannelHandler} are usually called by
+ * The event handler methods in {@link ChannelHandler} is usually called by
  * an I/O thread.  If {@link #await()} is called by an event handler
  * method, which is called by the I/O thread, the I/O operation it is waiting
- * for might never complete because {@link #await()} can block the I/O
+ * for might never be complete because {@link #await()} can block the I/O
  * operation it is waiting for, which is a dead lock.
  * <pre>
  * // BAD - NEVER DO THIS
  * {@code @Override}
- * public void channelRead({@link ChannelHandlerContext} ctx, Object msg) {
+ * public void channelRead({@link ChannelHandlerContext} ctx, GoodByeMessage msg) {
  *     {@link ChannelFuture} future = ctx.channel().close();
  *     future.awaitUninterruptibly();
  *     // Perform post-closure operation
@@ -104,7 +104,7 @@ import java.util.concurrent.TimeUnit;
  *
  * // GOOD
  * {@code @Override}
- * public void channelRead({@link ChannelHandlerContext} ctx, Object msg) {
+ * public void channelRead({@link ChannelHandlerContext} ctx,  GoodByeMessage msg) {
  *     {@link ChannelFuture} future = ctx.channel().close();
  *     future.addListener(new {@link ChannelFutureListener}() {
  *         public void operationComplete({@link ChannelFuture} future) {

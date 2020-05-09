@@ -18,6 +18,7 @@ package io.netty.testsuite.transport.socket;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInitializer;
@@ -32,6 +33,7 @@ import io.netty.handler.ssl.SslHandler;
 import io.netty.handler.ssl.SslHandshakeCompletionEvent;
 import io.netty.handler.ssl.SslProvider;
 import io.netty.handler.ssl.util.SelfSignedCertificate;
+import io.netty.util.ReferenceCountUtil;
 import io.netty.util.internal.logging.InternalLogger;
 import io.netty.util.internal.logging.InternalLoggerFactory;
 import org.junit.Test;
@@ -50,9 +52,7 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.fail;
+import static org.junit.Assert.*;
 
 @RunWith(Parameterized.class)
 public class SocketSslGreetingTest extends AbstractSocketTest {
@@ -62,6 +62,7 @@ public class SocketSslGreetingTest extends AbstractSocketTest {
     private static final LogLevel LOG_LEVEL = LogLevel.TRACE;
     private static final File CERT_FILE;
     private static final File KEY_FILE;
+    private final ByteBuf greeting = ReferenceCountUtil.releaseLater(Unpooled.buffer().writeByte('a'));
 
     static {
         SelfSignedCertificate ssc;
@@ -140,7 +141,7 @@ public class SocketSslGreetingTest extends AbstractSocketTest {
         });
 
         Channel sc = sb.bind().sync().channel();
-        Channel cc = cb.connect(sc.localAddress()).sync().channel();
+        Channel cc = cb.connect().sync().channel();
 
         ch.latch.await();
 
@@ -162,15 +163,14 @@ public class SocketSslGreetingTest extends AbstractSocketTest {
         }
     }
 
-    private static class ClientHandler extends SimpleChannelInboundHandler<ByteBuf> {
+    private class ClientHandler extends SimpleChannelInboundHandler<ByteBuf> {
 
         final AtomicReference<Throwable> exception = new AtomicReference<Throwable>();
         final CountDownLatch latch = new CountDownLatch(1);
 
         @Override
         public void channelRead0(ChannelHandlerContext ctx, ByteBuf buf) throws Exception {
-            assertEquals('a', buf.readByte());
-            assertFalse(buf.isReadable());
+            assertEquals(greeting, buf);
             latch.countDown();
             ctx.close();
         }
@@ -187,7 +187,7 @@ public class SocketSslGreetingTest extends AbstractSocketTest {
         }
     }
 
-    private static class ServerHandler extends SimpleChannelInboundHandler<String> {
+    private class ServerHandler extends SimpleChannelInboundHandler<String> {
         volatile Channel channel;
         final AtomicReference<Throwable> exception = new AtomicReference<Throwable>();
 
@@ -200,7 +200,7 @@ public class SocketSslGreetingTest extends AbstractSocketTest {
         public void channelActive(ChannelHandlerContext ctx)
                 throws Exception {
             channel = ctx.channel();
-            channel.writeAndFlush(ctx.alloc().buffer().writeByte('a'));
+            channel.writeAndFlush(greeting.duplicate().retain());
         }
 
         @Override

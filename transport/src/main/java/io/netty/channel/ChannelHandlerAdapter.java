@@ -22,21 +22,12 @@ import java.util.Map;
 import java.util.WeakHashMap;
 
 /**
- * Skeleton implementation of a {@link ChannelHandler}.
+ * Skelton implementation of a {@link ChannelHandler}.
  */
 public abstract class ChannelHandlerAdapter implements ChannelHandler {
 
     // Not using volatile because it's used only for a sanity check.
     boolean added;
-
-    /**
-     * Throws {@link IllegalStateException} if {@link ChannelHandlerAdapter#isSharable()} returns {@code true}
-     */
-    protected void ensureNotSharable() {
-        if (isSharable()) {
-            throw new IllegalStateException("ChannelHandler " + getClass().getName() + " is not allowed to be shared");
-        }
-    }
 
     /**
      * Return {@code true} if the implementation is {@link Sharable} and so can be added

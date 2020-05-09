@@ -166,9 +166,6 @@ public abstract class AbstractOioByteChannel extends AbstractOioChannel {
             }
 
             if (closed) {
-                // There is nothing left to read as we received an EOF.
-                setReadPending(false);
-
                 inputShutdown = true;
                 if (isOpen()) {
                     if (Boolean.TRUE.equals(config().getOption(ChannelOption.ALLOW_HALF_CLOSURE))) {

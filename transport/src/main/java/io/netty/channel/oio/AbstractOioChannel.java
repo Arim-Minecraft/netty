@@ -69,13 +69,8 @@ public abstract class AbstractOioChannel extends AbstractChannel {
             try {
                 boolean wasActive = isActive();
                 doConnect(remoteAddress, localAddress);
-
-                // Get the state as trySuccess() may trigger an ChannelFutureListener that will close the Channel.
-                // We still need to ensure we call fireChannelActive() in this case.
-                boolean active = isActive();
-
                 safeSetSuccess(promise);
-                if (!wasActive && active) {
+                if (!wasActive && isActive()) {
                     pipeline().fireChannelActive();
                 }
             } catch (Throwable t) {

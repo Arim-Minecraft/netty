@@ -16,7 +16,7 @@
 package io.netty.handler.codec;
 
 /**
- * An {@link CodecException} which is thrown by a decoder.
+ * An {@link CodecException} which is thrown by a dencoder.
  */
 public class DecoderException extends CodecException {
 

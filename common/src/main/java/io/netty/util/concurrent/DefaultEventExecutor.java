@@ -28,11 +28,6 @@ final class DefaultEventExecutor extends SingleThreadEventExecutor {
         super(parent, threadFactory, true);
     }
 
-    DefaultEventExecutor(DefaultEventExecutorGroup parent, ThreadFactory threadFactory, int maxPendingTasks,
-                         RejectedExecutionHandler rejectedExecutionHandler) {
-        super(parent, threadFactory, true, maxPendingTasks, rejectedExecutionHandler);
-    }
-
     @Override
     protected void run() {
         for (;;) {

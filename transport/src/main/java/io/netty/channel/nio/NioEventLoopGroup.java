@@ -16,12 +16,8 @@
 package io.netty.channel.nio;
 
 import io.netty.channel.Channel;
-import io.netty.channel.DefaultSelectStrategyFactory;
 import io.netty.channel.MultithreadEventLoopGroup;
-import io.netty.channel.SelectStrategyFactory;
 import io.netty.util.concurrent.EventExecutor;
-import io.netty.util.concurrent.RejectedExecutionHandler;
-import io.netty.util.concurrent.RejectedExecutionHandlers;
 
 import java.nio.channels.Selector;
 import java.nio.channels.spi.SelectorProvider;
@@ -62,19 +58,7 @@ public class NioEventLoopGroup extends MultithreadEventLoopGroup {
      */
     public NioEventLoopGroup(
             int nThreads, ThreadFactory threadFactory, final SelectorProvider selectorProvider) {
-        this(nThreads, threadFactory, selectorProvider, DefaultSelectStrategyFactory.INSTANCE);
-    }
-
-    public NioEventLoopGroup(int nThreads, ThreadFactory threadFactory,
-        final SelectorProvider selectorProvider, final SelectStrategyFactory selectStrategyFactory) {
-        super(nThreads, threadFactory, selectorProvider, selectStrategyFactory, RejectedExecutionHandlers.reject());
-    }
-
-    public NioEventLoopGroup(int nThreads, ThreadFactory threadFactory,
-                             final SelectorProvider selectorProvider,
-                             final SelectStrategyFactory selectStrategyFactory,
-                             final RejectedExecutionHandler rejectedExecutionHandler) {
-        super(nThreads, threadFactory, selectorProvider, selectStrategyFactory, rejectedExecutionHandler);
+        super(nThreads, threadFactory, selectorProvider);
     }
 
     /**
@@ -98,8 +82,8 @@ public class NioEventLoopGroup extends MultithreadEventLoopGroup {
     }
 
     @Override
-    protected EventExecutor newChild(ThreadFactory threadFactory, Object... args) throws Exception {
-        return new NioEventLoop(this, threadFactory, (SelectorProvider) args[0],
-            ((SelectStrategyFactory) args[1]).newSelectStrategy(), (RejectedExecutionHandler) args[2]);
+    protected EventExecutor newChild(
+            ThreadFactory threadFactory, Object... args) throws Exception {
+        return new NioEventLoop(this, threadFactory, (SelectorProvider) args[0]);
     }
 }

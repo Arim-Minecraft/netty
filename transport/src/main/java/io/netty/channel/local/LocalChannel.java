@@ -18,6 +18,7 @@ package io.netty.channel.local;
 import io.netty.channel.AbstractChannel;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelConfig;
+import io.netty.channel.ChannelException;
 import io.netty.channel.ChannelMetadata;
 import io.netty.channel.ChannelOutboundBuffer;
 import io.netty.channel.ChannelPipeline;
@@ -28,13 +29,11 @@ import io.netty.channel.SingleThreadEventLoop;
 import io.netty.util.ReferenceCountUtil;
 import io.netty.util.concurrent.Future;
 import io.netty.util.concurrent.SingleThreadEventExecutor;
+import io.netty.util.internal.EmptyArrays;
 import io.netty.util.internal.InternalThreadLocalMap;
+import io.netty.util.internal.OneTimeTask;
 import io.netty.util.internal.PlatformDependent;
-import io.netty.util.internal.ThrowableUtil;
-import io.netty.util.internal.logging.InternalLogger;
-import io.netty.util.internal.logging.InternalLoggerFactory;
 
-import java.net.ConnectException;
 import java.net.SocketAddress;
 import java.nio.channels.AlreadyConnectedException;
 import java.nio.channels.ClosedChannelException;
@@ -47,22 +46,16 @@ import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
  * A {@link Channel} for the local transport.
  */
 public class LocalChannel extends AbstractChannel {
-    private static final InternalLogger logger = InternalLoggerFactory.getInstance(LocalChannel.class);
+
     @SuppressWarnings({ "rawtypes" })
-    private static final AtomicReferenceFieldUpdater<LocalChannel, Future> FINISH_READ_FUTURE_UPDATER =
-            AtomicReferenceFieldUpdater.newUpdater(LocalChannel.class, Future.class, "finishReadFuture");
+    private static final AtomicReferenceFieldUpdater<LocalChannel, Future> FINISH_READ_FUTURE_UPDATER;
     private static final ChannelMetadata METADATA = new ChannelMetadata(false);
     private static final int MAX_READER_STACK_DEPTH = 8;
-    private static final ClosedChannelException DO_WRITE_CLOSED_CHANNEL_EXCEPTION = ThrowableUtil.unknownStackTrace(
-            new ClosedChannelException(), LocalChannel.class, "doWrite(...)");
-    private static final ClosedChannelException DO_CLOSE_CLOSED_CHANNEL_EXCEPTION = ThrowableUtil.unknownStackTrace(
-            new ClosedChannelException(), LocalChannel.class, "doClose()");
-
-    private enum State { OPEN, BOUND, CONNECTED, CLOSED }
+    private static final ClosedChannelException CLOSED_CHANNEL_EXCEPTION = new ClosedChannelException();
 
     private final ChannelConfig config = new DefaultChannelConfig(this);
     // To further optimize this we could write our own SPSC queue.
-    final Queue<Object> inboundBuffer = PlatformDependent.newSpscQueue();
+    private final Queue<Object> inboundBuffer = PlatformDependent.newMpscQueue();
     private final Runnable readTask = new Runnable() {
         @Override
         public void run() {
@@ -94,11 +87,23 @@ public class LocalChannel extends AbstractChannel {
     private volatile boolean writeInProgress;
     private volatile Future<?> finishReadFuture;
 
+    static {
+        @SuppressWarnings({ "rawtypes" })
+        AtomicReferenceFieldUpdater<LocalChannel, Future> finishReadFutureUpdater =
+                PlatformDependent.newAtomicReferenceFieldUpdater(LocalChannel.class, "finishReadFuture");
+        if (finishReadFutureUpdater == null) {
+            finishReadFutureUpdater =
+                AtomicReferenceFieldUpdater.newUpdater(LocalChannel.class, Future.class, "finishReadFuture");
+        }
+        FINISH_READ_FUTURE_UPDATER = finishReadFutureUpdater;
+        CLOSED_CHANNEL_EXCEPTION.setStackTrace(EmptyArrays.EMPTY_STACK_TRACE);
+    }
+
     public LocalChannel() {
         super(null);
     }
 
-    protected LocalChannel(LocalServerChannel parent, LocalChannel peer) {
+    LocalChannel(LocalServerChannel parent, LocalChannel peer) {
         super(parent);
         this.peer = peer;
         localAddress = parent.localAddress();
@@ -185,7 +190,7 @@ public class LocalChannel extends AbstractChannel {
             // This ensures that if both channels are on the same event loop, the peer's channelActive
             // event is triggered *after* this channel's channelRegistered event, so that this channel's
             // pipeline is fully initialized by ChannelInitializer before any channelRead events.
-            peer.eventLoop().execute(new Runnable() {
+            peer.eventLoop().execute(new OneTimeTask() {
                 @Override
                 public void run() {
                     registerInProgress = false;
@@ -218,83 +223,63 @@ public class LocalChannel extends AbstractChannel {
     @Override
     protected void doClose() throws Exception {
         final LocalChannel peer = this.peer;
-        int oldState = state;
-        try {
-            if (oldState <= 2) {
-                // Update all internal state before the closeFuture is notified.
-                if (localAddress != null) {
-                    if (parent() == null) {
-                        LocalChannelRegistry.unregister(localAddress);
-                    }
-                    localAddress = null;
+        if (state <= 2) {
+            // Update all internal state before the closeFuture is notified.
+            if (localAddress != null) {
+                if (parent() == null) {
+                    LocalChannelRegistry.unregister(localAddress);
                 }
-
-                // State change must happen before finishPeerRead to ensure writes are released either in doWrite or
-                // channelRead.
-                state = 3;
-
-                // Preserve order of event and force a read operation now before the close operation is processed.
-                finishPeerRead(this);
-
-                ChannelPromise promise = connectPromise;
-                if (promise != null) {
-                    // Use tryFailure() instead of setFailure() to avoid the race against cancel().
-                    promise.tryFailure(DO_CLOSE_CLOSED_CHANNEL_EXCEPTION);
-                    connectPromise = null;
-                }
+                localAddress = null;
             }
 
-            if (peer != null) {
-                this.peer = null;
-                // Need to execute the close in the correct EventLoop (see https://github.com/netty/netty/issues/1777).
-                // Also check if the registration was not done yet. In this case we submit the close to the EventLoop
-                // to make sure its run after the registration completes
-                // (see https://github.com/netty/netty/issues/2144).
-                EventLoop peerEventLoop = peer.eventLoop();
-                final boolean peerIsActive = peer.isActive();
-                if (peerEventLoop.inEventLoop() && !registerInProgress) {
-                    peer.tryClose(peerIsActive);
-                } else {
-                    try {
-                        peerEventLoop.execute(new Runnable() {
-                            @Override
-                            public void run() {
-                                peer.tryClose(peerIsActive);
-                            }
-                        });
-                    } catch (Throwable cause) {
-                        logger.warn("Releasing Inbound Queues for channels {}-{} because exception occurred!",
-                                this, peer, cause);
-                        releaseInboundBuffers();
-                        if (peerEventLoop.inEventLoop()) {
-                            peer.releaseInboundBuffers();
-                        } else {
-                            // inboundBuffers is a SPSC so we may leak if the event loop is shutdown prematurely or
-                            // rejects the close Runnable but give a best effort.
-                            peer.close();
+            // State change must happen before finishPeerRead to ensure writes are released either in doWrite or
+            // channelRead.
+            state = 3;
+
+            ChannelPromise promise = connectPromise;
+            if (promise != null) {
+                // Use tryFailure() instead of setFailure() to avoid the race against cancel().
+                promise.tryFailure(CLOSED_CHANNEL_EXCEPTION);
+                connectPromise = null;
+            }
+
+            // To preserve ordering of events we must process any pending reads
+            if (writeInProgress && peer != null) {
+                finishPeerRead(peer);
+            }
+        }
+
+        if (peer != null && peer.isActive()) {
+            // Need to execute the close in the correct EventLoop (see https://github.com/netty/netty/issues/1777).
+            // Also check if the registration was not done yet. In this case we submit the close to the EventLoop
+            // to make sure its run after the registration completes (see https://github.com/netty/netty/issues/2144).
+            if (peer.eventLoop().inEventLoop() && !registerInProgress) {
+                doPeerClose(peer, peer.writeInProgress);
+            } else {
+                // This value may change, and so we should save it before executing the Runnable.
+                final boolean peerWriteInProgress = peer.writeInProgress;
+                try {
+                    peer.eventLoop().execute(new OneTimeTask() {
+                        @Override
+                        public void run() {
+                            doPeerClose(peer, peerWriteInProgress);
                         }
-                        PlatformDependent.throwException(cause);
-                    }
+                    });
+                } catch (RuntimeException e) {
+                    // The peer close may attempt to drain this.inboundBuffers. If that fails make sure it is drained.
+                    releaseInboundBuffers();
+                    throw e;
                 }
             }
-        } finally {
-            // Release all buffers if the Channel was already registered in the past and if it was not closed before.
-            if (peer != null && oldState != 3) {
-                // We need to release all the buffers that may be put into our inbound queue since we closed the Channel
-                // to ensure we not leak any memory. This is fine as it basically gives the same guarantees as TCP which
-                // means even if the promise was notified before its not really guaranteed that the "remote peer" will
-                // see the buffer at all.
-                releaseInboundBuffers();
-            }
+            this.peer = null;
         }
     }
 
-    private void tryClose(boolean isActive) {
-        if (isActive) {
-            unsafe().close(unsafe().voidPromise());
-        } else {
-            releaseInboundBuffers();
+    private void doPeerClose(LocalChannel peer, boolean peerWriteInProgress) {
+        if (peerWriteInProgress) {
+            finishPeerRead0(this);
         }
+        peer.unsafe().close(peer.unsafe().voidPromise());
     }
 
     @Override
@@ -335,11 +320,9 @@ public class LocalChannel extends AbstractChannel {
         } else {
             try {
                 eventLoop().execute(readTask);
-            } catch (Throwable cause) {
-                logger.warn("Closing Local channels {}-{} because exception occurred!", this, peer, cause);
-                close();
-                peer.close();
-                PlatformDependent.throwException(cause);
+            } catch (RuntimeException e) {
+                releaseInboundBuffers();
+                throw e;
             }
         }
     }
@@ -350,7 +333,7 @@ public class LocalChannel extends AbstractChannel {
             throw new NotYetConnectedException();
         }
         if (state > 2) {
-            throw DO_WRITE_CLOSED_CHANNEL_EXCEPTION;
+            throw CLOSED_CHANNEL_EXCEPTION;
         }
 
         final LocalChannel peer = this.peer;
@@ -369,7 +352,7 @@ public class LocalChannel extends AbstractChannel {
                         peer.inboundBuffer.add(ReferenceCountUtil.retain(msg));
                         in.remove();
                     } else {
-                        in.remove(DO_WRITE_CLOSED_CHANNEL_EXCEPTION);
+                        in.remove(CLOSED_CHANNEL_EXCEPTION);
                     }
                 } catch (Throwable cause) {
                     in.remove(cause);
@@ -399,7 +382,7 @@ public class LocalChannel extends AbstractChannel {
     private void runFinishPeerReadTask(final LocalChannel peer) {
         // If the peer is writing, we must wait until after reads are completed for that peer before we can read. So
         // we keep track of the task, and coordinate later that our read can't happen until the peer is done.
-        final Runnable finishPeerReadTask = new Runnable() {
+        final Runnable finishPeerReadTask = new OneTimeTask() {
             @Override
             public void run() {
                 finishPeerRead0(peer);
@@ -411,21 +394,19 @@ public class LocalChannel extends AbstractChannel {
             } else {
                 peer.eventLoop().execute(finishPeerReadTask);
             }
-        } catch (Throwable cause) {
-            logger.warn("Closing Local channels {}-{} because exception occurred!", this, peer, cause);
-            close();
-            peer.close();
-            PlatformDependent.throwException(cause);
+        } catch (RuntimeException e) {
+            peer.releaseInboundBuffers();
+            throw e;
         }
     }
 
     private void releaseInboundBuffers() {
-        assert eventLoop() == null || eventLoop().inEventLoop();
-        readInProgress = false;
-        Queue<Object> inboundBuffer = this.inboundBuffer;
-        Object msg;
-        while ((msg = inboundBuffer.poll()) != null) {
-            ReferenceCountUtil.release(msg);
+        for (;;) {
+            Object o = inboundBuffer.poll();
+            if (o == null) {
+                break;
+            }
+            ReferenceCountUtil.release(o);
         }
     }
 
@@ -495,7 +476,7 @@ public class LocalChannel extends AbstractChannel {
 
             Channel boundChannel = LocalChannelRegistry.get(remoteAddress);
             if (!(boundChannel instanceof LocalServerChannel)) {
-                Exception cause = new ConnectException("connection refused: " + remoteAddress);
+                Exception cause = new ChannelException("connection refused");
                 safeSetFailure(promise, cause);
                 close(voidPromise());
                 return;

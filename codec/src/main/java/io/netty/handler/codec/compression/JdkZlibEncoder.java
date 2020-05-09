@@ -22,6 +22,7 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelPromise;
 import io.netty.channel.ChannelPromiseNotifier;
 import io.netty.util.concurrent.EventExecutor;
+import io.netty.util.internal.OneTimeTask;
 
 import java.util.concurrent.TimeUnit;
 import java.util.zip.CRC32;
@@ -163,7 +164,7 @@ public class JdkZlibEncoder extends ZlibEncoder {
             return finishEncode(ctx, promise);
         } else {
             final ChannelPromise p = ctx.newPromise();
-            executor.execute(new Runnable() {
+            executor.execute(new OneTimeTask() {
                 @Override
                 public void run() {
                     ChannelFuture f = finishEncode(ctx(), p);
@@ -242,8 +243,6 @@ public class JdkZlibEncoder extends ZlibEncoder {
                 case ZLIB:
                     sizeEstimate += 2; // first two magic bytes
                     break;
-                default:
-                    // no op
             }
         }
         return ctx.alloc().heapBuffer(sizeEstimate);
@@ -261,7 +260,7 @@ public class JdkZlibEncoder extends ZlibEncoder {
 
         if (!f.isDone()) {
             // Ensure the channel is closed even if the write operation completes in time.
-            ctx.executor().schedule(new Runnable() {
+            ctx.executor().schedule(new OneTimeTask() {
                 @Override
                 public void run() {
                     ctx.close(promise);

@@ -19,13 +19,13 @@ import io.netty.channel.ChannelException;
 import io.netty.channel.socket.DatagramChannelConfig;
 import io.netty.channel.socket.DefaultDatagramChannelConfig;
 import io.netty.util.internal.PlatformDependent;
-import io.netty.util.internal.SocketUtils;
 
 import java.lang.reflect.Method;
 import java.net.InetAddress;
 import java.net.NetworkInterface;
 import java.net.SocketException;
 import java.nio.channels.DatagramChannel;
+import java.nio.channels.NetworkChannel;
 import java.util.Enumeration;
 
 /**
@@ -78,28 +78,16 @@ class NioDatagramChannelConfig extends DefaultDatagramChannelConfig {
                 throw new Error("cannot locate the IP_MULTICAST_LOOP field", e);
             }
 
-            Class<?> networkChannelClass = null;
             try {
-                networkChannelClass = Class.forName("java.nio.channels.NetworkChannel", true, classLoader);
-            } catch (Throwable ignore) {
-                // Not Java 7+
+                getOption = NetworkChannel.class.getDeclaredMethod("getOption", socketOptionType);
+            } catch (Exception e) {
+                throw new Error("cannot locate the getOption() method", e);
             }
 
-            if (networkChannelClass == null) {
-                getOption = null;
-                setOption = null;
-            } else {
-                try {
-                    getOption = networkChannelClass.getDeclaredMethod("getOption", socketOptionType);
-                } catch (Exception e) {
-                    throw new Error("cannot locate the getOption() method", e);
-                }
-
-                try {
-                    setOption = networkChannelClass.getDeclaredMethod("setOption", socketOptionType, Object.class);
-                } catch (Exception e) {
-                    throw new Error("cannot locate the setOption() method", e);
-                }
+            try {
+                setOption = NetworkChannel.class.getDeclaredMethod("setOption", socketOptionType, Object.class);
+            } catch (Exception e) {
+                throw new Error("cannot locate the setOption() method", e);
             }
         }
         IP_MULTICAST_TTL = ipMulticastTtl;
@@ -133,7 +121,7 @@ class NioDatagramChannelConfig extends DefaultDatagramChannelConfig {
         if (inf == null) {
             return null;
         } else {
-            Enumeration<InetAddress> addresses = SocketUtils.addressesFromNetworkInterface(inf);
+            Enumeration<InetAddress> addresses = inf.getInetAddresses();
             if (addresses.hasMoreElements()) {
                 return addresses.nextElement();
             }
@@ -185,7 +173,7 @@ class NioDatagramChannelConfig extends DefaultDatagramChannelConfig {
     }
 
     private Object getOption0(Object option) {
-        if (GET_OPTION == null) {
+        if (PlatformDependent.javaVersion() < 7) {
             throw new UnsupportedOperationException();
         } else {
             try {
@@ -197,7 +185,7 @@ class NioDatagramChannelConfig extends DefaultDatagramChannelConfig {
     }
 
     private void setOption0(Object option, Object value) {
-        if (SET_OPTION == null) {
+        if (PlatformDependent.javaVersion() < 7) {
             throw new UnsupportedOperationException();
         } else {
             try {
@@ -207,4 +195,5 @@ class NioDatagramChannelConfig extends DefaultDatagramChannelConfig {
             }
         }
     }
+
 }

@@ -107,15 +107,16 @@ public class JZlibDecoder extends ZlibDecoder {
                 z.next_in = array;
                 z.next_in_index = 0;
             }
-            final int oldNextInIndex = z.next_in_index;
+            int oldNextInIndex = z.next_in_index;
 
             // Configure output.
-            ByteBuf decompressed = ctx.alloc().heapBuffer(inputLength << 1);
+            int maxOutputLength = inputLength << 1;
+            ByteBuf decompressed = ctx.alloc().heapBuffer(maxOutputLength);
 
             try {
                 loop: for (;;) {
-                    decompressed.ensureWritable(z.avail_in << 1);
-                    z.avail_out = decompressed.writableBytes();
+                    z.avail_out = maxOutputLength;
+                    decompressed.ensureWritable(maxOutputLength);
                     z.next_out = decompressed.array();
                     z.next_out_index = decompressed.arrayOffset() + decompressed.writerIndex();
                     int oldNextOutIndex = z.next_out_index;

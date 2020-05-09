@@ -16,14 +16,12 @@
 package io.netty.channel.epoll;
 
 import io.netty.buffer.ByteBufAllocator;
-import io.netty.channel.ChannelException;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.FixedRecvByteBufAllocator;
 import io.netty.channel.MessageSizeEstimator;
 import io.netty.channel.RecvByteBufAllocator;
 import io.netty.channel.socket.DatagramChannelConfig;
 
-import java.io.IOException;
 import java.net.InetAddress;
 import java.net.NetworkInterface;
 import java.util.Map;
@@ -131,10 +129,6 @@ public final class EpollDatagramChannelConfig extends EpollChannelConfig impleme
         this.activeOnOpen = activeOnOpen;
     }
 
-    boolean getActiveOnOpen() {
-        return activeOnOpen;
-    }
-
     @Override
     public EpollDatagramChannelConfig setMessageSizeEstimator(MessageSizeEstimator estimator) {
         super.setMessageSizeEstimator(estimator);
@@ -197,97 +191,57 @@ public final class EpollDatagramChannelConfig extends EpollChannelConfig impleme
 
     @Override
     public int getSendBufferSize() {
-        try {
-            return datagramChannel.fd().getSendBufferSize();
-        } catch (IOException e) {
-            throw new ChannelException(e);
-        }
+        return datagramChannel.fd().getSendBufferSize();
     }
 
     @Override
     public EpollDatagramChannelConfig setSendBufferSize(int sendBufferSize) {
-        try {
-            datagramChannel.fd().setSendBufferSize(sendBufferSize);
-            return this;
-        } catch (IOException e) {
-            throw new ChannelException(e);
-        }
+        datagramChannel.fd().setSendBufferSize(sendBufferSize);
+        return this;
     }
 
     @Override
     public int getReceiveBufferSize() {
-        try {
-            return datagramChannel.fd().getReceiveBufferSize();
-        } catch (IOException e) {
-            throw new ChannelException(e);
-        }
+        return datagramChannel.fd().getReceiveBufferSize();
     }
 
     @Override
     public EpollDatagramChannelConfig setReceiveBufferSize(int receiveBufferSize) {
-        try {
-            datagramChannel.fd().setReceiveBufferSize(receiveBufferSize);
-            return this;
-        } catch (IOException e) {
-            throw new ChannelException(e);
-        }
+        datagramChannel.fd().setReceiveBufferSize(receiveBufferSize);
+        return this;
     }
 
     @Override
     public int getTrafficClass() {
-        try {
-            return Native.getTrafficClass(datagramChannel.fd().intValue());
-        } catch (IOException e) {
-            throw new ChannelException(e);
-        }
+        return Native.getTrafficClass(datagramChannel.fd().intValue());
     }
 
     @Override
     public EpollDatagramChannelConfig setTrafficClass(int trafficClass) {
-        try {
-            Native.setTrafficClass(datagramChannel.fd().intValue(), trafficClass);
-            return this;
-        } catch (IOException e) {
-            throw new ChannelException(e);
-        }
+        Native.setTrafficClass(datagramChannel.fd().intValue(), trafficClass);
+        return this;
     }
 
     @Override
     public boolean isReuseAddress() {
-        try {
-            return Native.isReuseAddress(datagramChannel.fd().intValue()) == 1;
-        } catch (IOException e) {
-            throw new ChannelException(e);
-        }
+        return Native.isReuseAddress(datagramChannel.fd().intValue()) == 1;
     }
 
     @Override
     public EpollDatagramChannelConfig setReuseAddress(boolean reuseAddress) {
-        try {
-            Native.setReuseAddress(datagramChannel.fd().intValue(), reuseAddress ? 1 : 0);
-            return this;
-        } catch (IOException e) {
-            throw new ChannelException(e);
-        }
+        Native.setReuseAddress(datagramChannel.fd().intValue(), reuseAddress ? 1 : 0);
+        return this;
     }
 
     @Override
     public boolean isBroadcast() {
-        try {
-            return Native.isBroadcast(datagramChannel.fd().intValue()) == 1;
-        } catch (IOException e) {
-            throw new ChannelException(e);
-        }
+        return Native.isBroadcast(datagramChannel.fd().intValue()) == 1;
     }
 
     @Override
     public EpollDatagramChannelConfig setBroadcast(boolean broadcast) {
-        try {
-            Native.setBroadcast(datagramChannel.fd().intValue(), broadcast ? 1 : 0);
-            return this;
-        } catch (IOException e) {
-            throw new ChannelException(e);
-        }
+        Native.setBroadcast(datagramChannel.fd().intValue(), broadcast ? 1 : 0);
+        return this;
     }
 
     @Override
@@ -340,11 +294,7 @@ public final class EpollDatagramChannelConfig extends EpollChannelConfig impleme
      * Returns {@code true} if the SO_REUSEPORT option is set.
      */
     public boolean isReusePort() {
-        try {
-            return Native.isReusePort(datagramChannel.fd().intValue()) == 1;
-        } catch (IOException e) {
-            throw new ChannelException(e);
-        }
+        return Native.isReusePort(datagramChannel.fd().intValue()) == 1;
     }
 
     /**
@@ -355,11 +305,7 @@ public final class EpollDatagramChannelConfig extends EpollChannelConfig impleme
      * any affect.
      */
     public EpollDatagramChannelConfig setReusePort(boolean reusePort) {
-        try {
-            Native.setReusePort(datagramChannel.fd().intValue(), reusePort ? 1 : 0);
-            return this;
-        } catch (IOException e) {
-            throw new ChannelException(e);
-        }
+        Native.setReusePort(datagramChannel.fd().intValue(), reusePort ? 1 : 0);
+        return this;
     }
 }

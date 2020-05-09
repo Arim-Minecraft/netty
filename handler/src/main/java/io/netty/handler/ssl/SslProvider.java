@@ -16,9 +16,6 @@
 
 package io.netty.handler.ssl;
 
-import io.netty.util.ReferenceCounted;
-import io.netty.util.internal.UnstableApi;
-
 /**
  * An enumeration of SSL/TLS protocol providers.
  */
@@ -30,10 +27,5 @@ public enum SslProvider {
     /**
      * OpenSSL-based implementation.
      */
-    OPENSSL,
-    /**
-     * OpenSSL-based implementation which does not have finalizers and instead implements {@link ReferenceCounted}.
-     */
-    @UnstableApi
-    OPENSSL_REFCNT
+    OPENSSL
 }

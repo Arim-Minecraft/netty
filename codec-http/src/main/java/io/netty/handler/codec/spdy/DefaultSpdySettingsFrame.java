@@ -36,13 +36,18 @@ public class DefaultSpdySettingsFrame implements SpdySettingsFrame {
 
     @Override
     public boolean isSet(int id) {
-        return settingsMap.containsKey(id);
+        Integer key = Integer.valueOf(id);
+        return settingsMap.containsKey(key);
     }
 
     @Override
     public int getValue(int id) {
-        final Setting setting = settingsMap.get(id);
-        return setting != null ? setting.getValue() : -1;
+        Integer key = Integer.valueOf(id);
+        if (settingsMap.containsKey(key)) {
+            return settingsMap.get(key).getValue();
+        } else {
+            return -1;
+        }
     }
 
     @Override
@@ -55,9 +60,9 @@ public class DefaultSpdySettingsFrame implements SpdySettingsFrame {
         if (id < 0 || id > SpdyCodecUtil.SPDY_SETTINGS_MAX_ID) {
             throw new IllegalArgumentException("Setting ID is not valid: " + id);
         }
-        final Integer key = Integer.valueOf(id);
-        final Setting setting = settingsMap.get(key);
-        if (setting != null) {
+        Integer key = Integer.valueOf(id);
+        if (settingsMap.containsKey(key)) {
+            Setting setting = settingsMap.get(key);
             setting.setValue(value);
             setting.setPersist(persistValue);
             setting.setPersisted(persisted);
@@ -69,36 +74,47 @@ public class DefaultSpdySettingsFrame implements SpdySettingsFrame {
 
     @Override
     public SpdySettingsFrame removeValue(int id) {
-        settingsMap.remove(id);
+        Integer key = Integer.valueOf(id);
+        if (settingsMap.containsKey(key)) {
+            settingsMap.remove(key);
+        }
         return this;
     }
 
     @Override
     public boolean isPersistValue(int id) {
-        final Setting setting = settingsMap.get(id);
-        return setting != null && setting.isPersist();
+        Integer key = Integer.valueOf(id);
+        if (settingsMap.containsKey(key)) {
+            return settingsMap.get(key).isPersist();
+        } else {
+            return false;
+        }
     }
 
     @Override
     public SpdySettingsFrame setPersistValue(int id, boolean persistValue) {
-        final Setting setting = settingsMap.get(id);
-        if (setting != null) {
-            setting.setPersist(persistValue);
+        Integer key = Integer.valueOf(id);
+        if (settingsMap.containsKey(key)) {
+            settingsMap.get(key).setPersist(persistValue);
         }
         return this;
     }
 
     @Override
     public boolean isPersisted(int id) {
-        final Setting setting = settingsMap.get(id);
-        return setting != null && setting.isPersisted();
+        Integer key = Integer.valueOf(id);
+        if (settingsMap.containsKey(key)) {
+            return settingsMap.get(key).isPersisted();
+        } else {
+            return false;
+        }
     }
 
     @Override
     public SpdySettingsFrame setPersisted(int id, boolean persisted) {
-        final Setting setting = settingsMap.get(id);
-        if (setting != null) {
-            setting.setPersisted(persisted);
+        Integer key = Integer.valueOf(id);
+        if (settingsMap.containsKey(key)) {
+            settingsMap.get(key).setPersisted(persisted);
         }
         return this;
     }

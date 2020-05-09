@@ -192,52 +192,14 @@ public class HttpContentCompressorTest {
     }
 
     @Test
-    public void testFullContentWithContentLength() throws Exception {
-        EmbeddedChannel ch = new EmbeddedChannel(new HttpContentCompressor());
-        ch.writeInbound(newRequest());
-
-        FullHttpResponse fullRes = new DefaultFullHttpResponse(
-                HttpVersion.HTTP_1_1, HttpResponseStatus.OK,
-                Unpooled.copiedBuffer("Hello, World", CharsetUtil.US_ASCII));
-
-        fullRes.headers().set(Names.CONTENT_LENGTH, fullRes.content().readableBytes());
-        ch.writeOutbound(fullRes);
-
-        HttpResponse res = (HttpResponse) ch.readOutbound();
-        assertThat(res, is(not(instanceOf(HttpContent.class))));
-
-        assertThat(res.headers().get(Names.TRANSFER_ENCODING), is(nullValue()));
-        assertThat(res.headers().get(Names.CONTENT_ENCODING), is("gzip"));
-
-        long contentLengthHeaderValue = HttpHeaders.getContentLength(res);
-        long observedLength = 0;
-
-        HttpContent c = (HttpContent) ch.readOutbound();
-        observedLength += c.content().readableBytes();
-        assertThat(ByteBufUtil.hexDump(c.content()), is("1f8b0800000000000000f248cdc9c9d75108cf2fca4901000000ffff"));
-        c.release();
-
-        c = (HttpContent) ch.readOutbound();
-        observedLength += c.content().readableBytes();
-        assertThat(ByteBufUtil.hexDump(c.content()), is("0300c6865b260c000000"));
-        c.release();
-
-        LastHttpContent last = (LastHttpContent) ch.readOutbound();
-        assertThat(last.content().readableBytes(), is(0));
-        last.release();
-
-        assertThat(ch.readOutbound(), is(nullValue()));
-        assertEquals(contentLengthHeaderValue, observedLength);
-    }
-
-    @Test
     public void testFullContent() throws Exception {
         EmbeddedChannel ch = new EmbeddedChannel(new HttpContentCompressor());
         ch.writeInbound(newRequest());
 
         FullHttpResponse res = new DefaultFullHttpResponse(
-            HttpVersion.HTTP_1_1, HttpResponseStatus.OK,
-            Unpooled.copiedBuffer("Hello, World", CharsetUtil.US_ASCII));
+                HttpVersion.HTTP_1_1, HttpResponseStatus.OK,
+                Unpooled.copiedBuffer("Hello, World", CharsetUtil.US_ASCII));
+        res.headers().set(Names.CONTENT_LENGTH, res.content().readableBytes());
         ch.writeOutbound(res);
 
         assertEncodedResponse(ch);
@@ -402,50 +364,6 @@ public class HttpContentCompressorTest {
             }
             ReferenceCountUtil.release(message);
         }
-    }
-
-    @Test
-    public void testIdentity() throws Exception {
-        EmbeddedChannel ch = new EmbeddedChannel(new HttpContentCompressor());
-        assertTrue(ch.writeInbound(newRequest()));
-
-        FullHttpResponse res = new DefaultFullHttpResponse(
-                HttpVersion.HTTP_1_1, HttpResponseStatus.OK,
-                Unpooled.copiedBuffer("Hello, World", CharsetUtil.US_ASCII));
-        int len = res.content().readableBytes();
-        res.headers().set(Names.CONTENT_LENGTH, len);
-        res.headers().set(Names.CONTENT_ENCODING, Values.IDENTITY);
-        assertTrue(ch.writeOutbound(res));
-
-        FullHttpResponse response = (FullHttpResponse) ch.readOutbound();
-        assertEquals(String.valueOf(len), response.headers().get(Names.CONTENT_LENGTH));
-        assertEquals(Values.IDENTITY, response.headers().get(Names.CONTENT_ENCODING));
-        assertEquals("Hello, World", response.content().toString(CharsetUtil.US_ASCII));
-        response.release();
-
-        assertTrue(ch.finishAndReleaseAll());
-    }
-
-    @Test
-    public void testCustomEncoding() throws Exception {
-        EmbeddedChannel ch = new EmbeddedChannel(new HttpContentCompressor());
-        assertTrue(ch.writeInbound(newRequest()));
-
-        FullHttpResponse res = new DefaultFullHttpResponse(
-                HttpVersion.HTTP_1_1, HttpResponseStatus.OK,
-                Unpooled.copiedBuffer("Hello, World", CharsetUtil.US_ASCII));
-        int len = res.content().readableBytes();
-        res.headers().set(Names.CONTENT_LENGTH, len);
-        res.headers().set(Names.CONTENT_ENCODING, "ascii");
-        assertTrue(ch.writeOutbound(res));
-
-        FullHttpResponse response = (FullHttpResponse) ch.readOutbound();
-        assertEquals(String.valueOf(len), response.headers().get(Names.CONTENT_LENGTH));
-        assertEquals("ascii", response.headers().get(Names.CONTENT_ENCODING));
-        assertEquals("Hello, World", response.content().toString(CharsetUtil.US_ASCII));
-        response.release();
-
-        assertTrue(ch.finishAndReleaseAll());
     }
 
     private static FullHttpRequest newRequest() {

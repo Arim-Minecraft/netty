@@ -16,12 +16,10 @@
 package io.netty.handler.codec.socks;
 
 import io.netty.channel.embedded.EmbeddedChannel;
-import io.netty.util.internal.SocketUtils;
 import io.netty.util.internal.logging.InternalLogger;
 import io.netty.util.internal.logging.InternalLoggerFactory;
 import org.junit.Test;
-
-import java.net.UnknownHostException;
+import sun.net.util.IPAddressUtil;
 
 import static org.junit.Assert.*;
 
@@ -64,8 +62,8 @@ public class SocksCmdRequestDecoderTest {
     }
 
     @Test
-    public void testCmdRequestDecoderIPv6() throws UnknownHostException {
-        String[] hosts = {SocksCommonUtils.ipv6toStr(SocketUtils.addressByName("::1").getAddress())};
+    public void testCmdRequestDecoderIPv6() {
+        String[] hosts = {SocksCommonUtils.ipv6toStr(IPAddressUtil.textToNumericFormatV6("::1"))};
         int[] ports = {1, 32769, 65535};
         for (SocksCmdType cmdType : SocksCmdType.values()) {
             for (String host : hosts) {

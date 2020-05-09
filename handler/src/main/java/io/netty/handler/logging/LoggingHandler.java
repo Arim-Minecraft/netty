@@ -235,16 +235,8 @@ public class LoggingHandler extends ChannelDuplexHandler {
     }
 
     @Override
-    public void channelReadComplete(ChannelHandlerContext ctx) throws Exception {
-        if (logger.isEnabled(internalLevel)) {
-            logger.log(internalLevel, format(ctx, "READ COMPLETE"));
-        }
-        ctx.fireChannelReadComplete();
-    }
-
-    @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
-        logMessage(ctx, "READ", msg);
+        logMessage(ctx, "RECEIVED", msg);
         ctx.fireChannelRead(msg);
     }
 
@@ -252,14 +244,6 @@ public class LoggingHandler extends ChannelDuplexHandler {
     public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) throws Exception {
         logMessage(ctx, "WRITE", msg);
         ctx.write(msg, promise);
-    }
-
-    @Override
-    public void channelWritabilityChanged(ChannelHandlerContext ctx) throws Exception {
-        if (logger.isEnabled(internalLevel)) {
-            logger.log(internalLevel, format(ctx, "WRITABILITY CHANGED"));
-        }
-        ctx.fireChannelWritabilityChanged();
     }
 
     @Override

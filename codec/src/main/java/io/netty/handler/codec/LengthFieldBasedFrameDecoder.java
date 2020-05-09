@@ -15,12 +15,12 @@
  */
 package io.netty.handler.codec;
 
-import java.nio.ByteOrder;
-import java.util.List;
-
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.serialization.ObjectDecoder;
+
+import java.nio.ByteOrder;
+import java.util.List;
 
 /**
  * A decoder that splits the received {@link ByteBuf}s dynamically by the
@@ -346,56 +346,6 @@ public class LengthFieldBasedFrameDecoder extends ByteToMessageDecoder {
         }
     }
 
-    private void discardingTooLongFrame(ByteBuf in) {
-        long bytesToDiscard = this.bytesToDiscard;
-        int localBytesToDiscard = (int) Math.min(bytesToDiscard, in.readableBytes());
-        in.skipBytes(localBytesToDiscard);
-        bytesToDiscard -= localBytesToDiscard;
-        this.bytesToDiscard = bytesToDiscard;
-
-        failIfNecessary(false);
-    }
-
-    private static void failOnNegativeLengthField(ByteBuf in, long frameLength, int lengthFieldEndOffset) {
-        in.skipBytes(lengthFieldEndOffset);
-        throw new CorruptedFrameException(
-           "negative pre-adjustment length field: " + frameLength);
-    }
-
-    private static void failOnFrameLengthLessThanLengthFieldEndOffset(ByteBuf in,
-                                                                      long frameLength,
-                                                                      int lengthFieldEndOffset) {
-        in.skipBytes(lengthFieldEndOffset);
-        throw new CorruptedFrameException(
-           "Adjusted frame length (" + frameLength + ") is less " +
-              "than lengthFieldEndOffset: " + lengthFieldEndOffset);
-    }
-
-    private void exceededFrameLength(ByteBuf in, long frameLength) {
-        long discard = frameLength - in.readableBytes();
-        tooLongFrameLength = frameLength;
-
-        if (discard < 0) {
-            // buffer contains more bytes then the frameLength so we can discard all now
-            in.skipBytes((int) frameLength);
-        } else {
-            // Enter the discard mode and discard everything received so far.
-            discardingTooLongFrame = true;
-            bytesToDiscard = discard;
-            in.skipBytes(in.readableBytes());
-        }
-        failIfNecessary(true);
-    }
-
-    private static void failOnFrameLengthLessThanInitialBytesToStrip(ByteBuf in,
-                                                                     long frameLength,
-                                                                     int initialBytesToStrip) {
-        in.skipBytes((int) frameLength);
-        throw new CorruptedFrameException(
-           "Adjusted frame length (" + frameLength + ") is less " +
-              "than initialBytesToStrip: " + initialBytesToStrip);
-    }
-
     /**
      * Create a frame out of the {@link ByteBuf} and return it.
      *
@@ -406,7 +356,13 @@ public class LengthFieldBasedFrameDecoder extends ByteToMessageDecoder {
      */
     protected Object decode(ChannelHandlerContext ctx, ByteBuf in) throws Exception {
         if (discardingTooLongFrame) {
-            discardingTooLongFrame(in);
+            long bytesToDiscard = this.bytesToDiscard;
+            int localBytesToDiscard = (int) Math.min(bytesToDiscard, in.readableBytes());
+            in.skipBytes(localBytesToDiscard);
+            bytesToDiscard -= localBytesToDiscard;
+            this.bytesToDiscard = bytesToDiscard;
+
+            failIfNecessary(false);
         }
 
         if (in.readableBytes() < lengthFieldEndOffset) {
@@ -417,17 +373,34 @@ public class LengthFieldBasedFrameDecoder extends ByteToMessageDecoder {
         long frameLength = getUnadjustedFrameLength(in, actualLengthFieldOffset, lengthFieldLength, byteOrder);
 
         if (frameLength < 0) {
-            failOnNegativeLengthField(in, frameLength, lengthFieldEndOffset);
+            in.skipBytes(lengthFieldEndOffset);
+            throw new CorruptedFrameException(
+                    "negative pre-adjustment length field: " + frameLength);
         }
 
         frameLength += lengthAdjustment + lengthFieldEndOffset;
 
         if (frameLength < lengthFieldEndOffset) {
-            failOnFrameLengthLessThanLengthFieldEndOffset(in, frameLength, lengthFieldEndOffset);
+            in.skipBytes(lengthFieldEndOffset);
+            throw new CorruptedFrameException(
+                    "Adjusted frame length (" + frameLength + ") is less " +
+                    "than lengthFieldEndOffset: " + lengthFieldEndOffset);
         }
 
         if (frameLength > maxFrameLength) {
-            exceededFrameLength(in, frameLength);
+            long discard = frameLength - in.readableBytes();
+            tooLongFrameLength = frameLength;
+
+            if (discard < 0) {
+                // buffer contains more bytes then the frameLength so we can discard all now
+                in.skipBytes((int) frameLength);
+            } else {
+                // Enter the discard mode and discard everything received so far.
+                discardingTooLongFrame = true;
+                bytesToDiscard = discard;
+                in.skipBytes(in.readableBytes());
+            }
+            failIfNecessary(true);
             return null;
         }
 
@@ -438,7 +411,10 @@ public class LengthFieldBasedFrameDecoder extends ByteToMessageDecoder {
         }
 
         if (initialBytesToStrip > frameLengthInt) {
-            failOnFrameLengthLessThanInitialBytesToStrip(in, frameLength, initialBytesToStrip);
+            in.skipBytes(frameLengthInt);
+            throw new CorruptedFrameException(
+                    "Adjusted frame length (" + frameLength + ") is less " +
+                    "than initialBytesToStrip: " + initialBytesToStrip);
         }
         in.skipBytes(initialBytesToStrip);
 
@@ -491,7 +467,8 @@ public class LengthFieldBasedFrameDecoder extends ByteToMessageDecoder {
             long tooLongFrameLength = this.tooLongFrameLength;
             this.tooLongFrameLength = 0;
             discardingTooLongFrame = false;
-            if (!failFast || firstDetectionOfTooLongFrame) {
+            if (!failFast ||
+                failFast && firstDetectionOfTooLongFrame) {
                 fail(tooLongFrameLength);
             }
         } else {

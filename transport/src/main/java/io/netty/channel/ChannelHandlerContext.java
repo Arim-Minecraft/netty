@@ -211,7 +211,7 @@ public interface ChannelHandlerContext
      * method  called of the next  {@link ChannelInboundHandler} contained in the  {@link ChannelPipeline} of the
      * {@link Channel}.
      */
-    ChannelHandlerContext fireUserEventTriggered(Object evt);
+    ChannelHandlerContext fireUserEventTriggered(Object event);
 
     /**
      * A {@link Channel} received a message.

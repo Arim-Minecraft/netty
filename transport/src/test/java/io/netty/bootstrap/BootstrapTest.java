@@ -216,7 +216,6 @@ public class BootstrapTest {
     }
 
     private static final class TestLocalEventLoopGroup extends LocalEventLoopGroup {
-
         ChannelPromise promise;
         TestLocalEventLoopGroup() {
             super(1);

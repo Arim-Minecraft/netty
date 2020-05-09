@@ -36,7 +36,7 @@ public final class RtspHeaders {
          */
         public static final String ACCEPT_ENCODING = HttpHeaders.Names.ACCEPT_ENCODING;
         /**
-         * {@code "Accept-Language"}
+         * {@code "Accept-Lanugage"}
          */
         public static final String ACCEPT_LANGUAGE = HttpHeaders.Names.ACCEPT_LANGUAGE;
         /**

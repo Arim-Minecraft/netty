@@ -17,7 +17,6 @@ package io.netty.handler.codec.http;
 
 import io.netty.bootstrap.Bootstrap;
 import io.netty.bootstrap.ServerBootstrap;
-import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
@@ -41,9 +40,14 @@ import java.net.InetSocketAddress;
 import java.util.concurrent.CountDownLatch;
 
 import static io.netty.util.ReferenceCountUtil.release;
+import static io.netty.util.ReferenceCountUtil.releaseLater;
 import static java.util.concurrent.TimeUnit.SECONDS;
-import static org.hamcrest.CoreMatchers.*;
-import static org.junit.Assert.*;
+import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public class HttpClientCodecTest {
 
@@ -111,9 +115,7 @@ public class HttpClientCodecTest {
 
         assertTrue(ch.writeOutbound(new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET,
                 "http://localhost/")));
-        ByteBuf buffer = (ByteBuf) ch.readOutbound();
-        assertNotNull(buffer);
-        buffer.release();
+        assertNotNull(releaseLater(ch.readOutbound()));
         try {
             ch.finish();
             fail();
@@ -127,15 +129,15 @@ public class HttpClientCodecTest {
         HttpClientCodec codec = new HttpClientCodec(4096, 8192, 8192, true);
         EmbeddedChannel ch = new EmbeddedChannel(codec);
 
-        ch.writeOutbound(new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "http://localhost/"));
-        ByteBuf buffer = (ByteBuf) ch.readOutbound();
-        assertNotNull(buffer);
-        buffer.release();
+        ch.writeOutbound(releaseLater(
+                new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "http://localhost/")));
+        assertNotNull(releaseLater(ch.readOutbound()));
         assertNull(ch.readInbound());
-        ch.writeInbound(Unpooled.copiedBuffer(INCOMPLETE_CHUNKED_RESPONSE, CharsetUtil.ISO_8859_1));
-        assertThat(ch.readInbound(), instanceOf(HttpResponse.class));
-        ((HttpContent) ch.readInbound()).release(); // Chunk 'first'
-        ((HttpContent) ch.readInbound()).release(); // Chunk 'second'
+        ch.writeInbound(releaseLater(
+                Unpooled.copiedBuffer(INCOMPLETE_CHUNKED_RESPONSE, CharsetUtil.ISO_8859_1)));
+        assertThat(releaseLater(ch.readInbound()), instanceOf(HttpResponse.class));
+        assertThat(releaseLater(ch.readInbound()), instanceOf(HttpContent.class)); // Chunk 'first'
+        assertThat(releaseLater(ch.readInbound()), instanceOf(HttpContent.class)); // Chunk 'second'
         assertNull(ch.readInbound());
 
         try {
@@ -151,7 +153,7 @@ public class HttpClientCodecTest {
         ServerBootstrap sb = new ServerBootstrap();
         Bootstrap cb = new Bootstrap();
         final CountDownLatch serverChannelLatch = new CountDownLatch(1);
-        final CountDownLatch responseReceivedLatch = new CountDownLatch(1);
+        final CountDownLatch responseRecievedLatch = new CountDownLatch(1);
         try {
             sb.group(new NioEventLoopGroup(2));
             sb.channel(NioServerSocketChannel.class);
@@ -208,7 +210,7 @@ public class HttpClientCodecTest {
                     ch.pipeline().addLast(new SimpleChannelInboundHandler<FullHttpResponse>() {
                         @Override
                         protected void channelRead0(ChannelHandlerContext ctx, FullHttpResponse msg) {
-                            responseReceivedLatch.countDown();
+                            responseRecievedLatch.countDown();
                         }
                     });
                 }
@@ -222,65 +224,11 @@ public class HttpClientCodecTest {
             Channel clientChannel = ccf.channel();
             assertTrue(serverChannelLatch.await(5, SECONDS));
             clientChannel.writeAndFlush(new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/"));
-            assertTrue(responseReceivedLatch.await(5, SECONDS));
+            assertTrue(responseRecievedLatch.await(5, SECONDS));
         } finally {
             sb.group().shutdownGracefully();
             sb.childGroup().shutdownGracefully();
             cb.group().shutdownGracefully();
         }
-    }
-
-    @Test
-    public void testDecodesFinalResponseAfterSwitchingProtocols() {
-        String SWITCHING_PROTOCOLS_RESPONSE = "HTTP/1.1 101 Switching Protocols\r\n" +
-                "Connection: Upgrade\r\n" +
-                "Upgrade: TLS/1.2, HTTP/1.1\r\n\r\n";
-
-        HttpClientCodec codec = new HttpClientCodec(4096, 8192, 8192, true);
-        EmbeddedChannel ch = new EmbeddedChannel(codec, new HttpObjectAggregator(1024));
-
-        HttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "http://localhost/");
-        request.headers().set(HttpHeaders.Names.CONNECTION, HttpHeaders.Values.UPGRADE);
-        request.headers().set(HttpHeaders.Names.UPGRADE, "TLS/1.2");
-        assertTrue("Channel outbound write failed.", ch.writeOutbound(request));
-
-        assertTrue("Channel inbound write failed.",
-                ch.writeInbound(Unpooled.copiedBuffer(SWITCHING_PROTOCOLS_RESPONSE, CharsetUtil.ISO_8859_1)));
-        Object switchingProtocolsResponse = ch.readInbound();
-        assertNotNull("No response received", switchingProtocolsResponse);
-        assertThat("Response was not decoded", switchingProtocolsResponse, instanceOf(FullHttpResponse.class));
-        ((FullHttpResponse) switchingProtocolsResponse).release();
-
-        assertTrue("Channel inbound write failed",
-                ch.writeInbound(Unpooled.copiedBuffer(RESPONSE, CharsetUtil.ISO_8859_1)));
-        Object finalResponse = ch.readInbound();
-        assertNotNull("No response received", finalResponse);
-        assertThat("Response was not decoded", finalResponse, instanceOf(FullHttpResponse.class));
-        ((FullHttpResponse) finalResponse).release();
-        assertTrue("Channel finish failed", ch.finishAndReleaseAll());
-    }
-
-    @Test
-    public void testWebSocket00Response() {
-        byte[] data = ("HTTP/1.1 101 WebSocket Protocol Handshake\r\n" +
-                "Upgrade: WebSocket\r\n" +
-                "Connection: Upgrade\r\n" +
-                "Sec-WebSocket-Origin: http://localhost:8080\r\n" +
-                "Sec-WebSocket-Location: ws://localhost/some/path\r\n" +
-                "\r\n" +
-                "1234567812345678").getBytes();
-        EmbeddedChannel ch = new EmbeddedChannel(new HttpClientCodec());
-        assertTrue(ch.writeInbound(Unpooled.wrappedBuffer(data)));
-
-        HttpResponse res = (HttpResponse) ch.readInbound();
-        assertThat(res.getProtocolVersion(), sameInstance(HttpVersion.HTTP_1_1));
-        assertThat(res.getStatus(), is(HttpResponseStatus.SWITCHING_PROTOCOLS));
-        HttpContent content = (HttpContent) ch.readInbound();
-        assertThat(content.content().readableBytes(), is(16));
-        content.release();
-
-        assertThat(ch.finish(), is(false));
-
-        assertThat(ch.readInbound(), is(nullValue()));
     }
 }

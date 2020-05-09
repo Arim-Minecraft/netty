@@ -32,7 +32,7 @@ public interface HttpData extends InterfaceHttpData, ByteBufHolder {
      *
      * @param buffer
      *            must be not null
-     * @throws IOException
+     * @exception IOException
      */
     void setContent(ByteBuf buffer) throws IOException;
 
@@ -43,7 +43,7 @@ public interface HttpData extends InterfaceHttpData, ByteBufHolder {
      *            must be not null except if last is set to False
      * @param last
      *            True of the buffer is the last one
-     * @throws IOException
+     * @exception IOException
      */
     void addContent(ByteBuf buffer, boolean last) throws IOException;
 
@@ -52,7 +52,7 @@ public interface HttpData extends InterfaceHttpData, ByteBufHolder {
      *
      * @param file
      *            must be not null
-     * @throws IOException
+     * @exception IOException
      */
     void setContent(File file) throws IOException;
 
@@ -61,7 +61,7 @@ public interface HttpData extends InterfaceHttpData, ByteBufHolder {
      *
      * @param inputStream
      *            must be not null
-     * @throws IOException
+     * @exception IOException
      */
     void setContent(InputStream inputStream) throws IOException;
 
@@ -88,7 +88,7 @@ public interface HttpData extends InterfaceHttpData, ByteBufHolder {
      * Returns the contents of the file item as an array of bytes.
      *
      * @return the contents of the file item as an array of bytes.
-     * @throws IOException
+     * @exception IOException
      */
     byte[] get() throws IOException;
 
@@ -117,7 +117,7 @@ public interface HttpData extends InterfaceHttpData, ByteBufHolder {
      *
      * @return the contents of the file item as a String, using the default
      *         character encoding.
-     * @throws IOException
+     * @exception IOException
      */
     String getString() throws IOException;
 
@@ -129,7 +129,7 @@ public interface HttpData extends InterfaceHttpData, ByteBufHolder {
      *            the charset to use
      * @return the contents of the file item as a String, using the specified
      *         charset.
-     * @throws IOException
+     * @exception IOException
      */
     String getString(Charset encoding) throws IOException;
 
@@ -157,7 +157,7 @@ public interface HttpData extends InterfaceHttpData, ByteBufHolder {
      * @param dest
      *            destination file - must be not null
      * @return True if the write is successful
-     * @throws IOException
+     * @exception IOException
      */
     boolean renameTo(File dest) throws IOException;
 

@@ -16,7 +16,6 @@
 package io.netty.handler.codec.http.cors;
 
 import io.netty.channel.ChannelDuplexHandler;
-import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelPromise;
@@ -75,11 +74,8 @@ public class CorsHandler extends ChannelDuplexHandler {
             setMaxAge(response);
             setPreflightHeaders(response);
         }
-        if (!response.headers().contains(CONTENT_LENGTH)) {
-            response.headers().set(CONTENT_LENGTH, "0");
-        }
         release(request);
-        respond(ctx, request, response);
+        ctx.writeAndFlush(response).addListener(ChannelFutureListener.CLOSE);
     }
 
     /**
@@ -191,6 +187,7 @@ public class CorsHandler extends ChannelDuplexHandler {
             final HttpResponse response = (HttpResponse) msg;
             if (setOrigin(response)) {
                 setAllowCredentials(response);
+                setAllowHeaders(response);
                 setExposeHeaders(response);
             }
         }
@@ -204,25 +201,9 @@ public class CorsHandler extends ChannelDuplexHandler {
     }
 
     private static void forbidden(final ChannelHandlerContext ctx, final HttpRequest request) {
-        HttpResponse response = new DefaultFullHttpResponse(request.getProtocolVersion(), FORBIDDEN);
-        response.headers().set(CONTENT_LENGTH, "0");
+        ctx.writeAndFlush(new DefaultFullHttpResponse(request.getProtocolVersion(), FORBIDDEN))
+                .addListener(ChannelFutureListener.CLOSE);
         release(request);
-        respond(ctx, request, response);
-    }
-
-    private static void respond(
-            final ChannelHandlerContext ctx,
-            final HttpRequest request,
-            final HttpResponse response) {
-
-        final boolean keepAlive = HttpHeaders.isKeepAlive(request);
-
-        HttpHeaders.setKeepAlive(response, keepAlive);
-
-        final ChannelFuture future = ctx.writeAndFlush(response);
-        if (!keepAlive) {
-            future.addListener(ChannelFutureListener.CLOSE);
-        }
     }
 }
 

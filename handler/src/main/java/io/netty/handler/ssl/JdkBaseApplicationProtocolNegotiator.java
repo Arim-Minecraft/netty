@@ -41,7 +41,7 @@ class JdkBaseApplicationProtocolNegotiator implements JdkApplicationProtocolNego
      * @param listenerFactory How the peer being notified of the selected protocol should behave.
      * @param protocols The order of iteration determines the preference of support for protocols.
      */
-    JdkBaseApplicationProtocolNegotiator(SslEngineWrapperFactory wrapperFactory,
+    protected JdkBaseApplicationProtocolNegotiator(SslEngineWrapperFactory wrapperFactory,
             ProtocolSelectorFactory selectorFactory, ProtocolSelectionListenerFactory listenerFactory,
             Iterable<String> protocols) {
         this(wrapperFactory, selectorFactory, listenerFactory, toList(protocols));
@@ -54,7 +54,7 @@ class JdkBaseApplicationProtocolNegotiator implements JdkApplicationProtocolNego
      * @param listenerFactory How the peer being notified of the selected protocol should behave.
      * @param protocols The order of iteration determines the preference of support for protocols.
      */
-    JdkBaseApplicationProtocolNegotiator(SslEngineWrapperFactory wrapperFactory,
+    protected JdkBaseApplicationProtocolNegotiator(SslEngineWrapperFactory wrapperFactory,
             ProtocolSelectorFactory selectorFactory, ProtocolSelectionListenerFactory listenerFactory,
             String... protocols) {
         this(wrapperFactory, selectorFactory, listenerFactory, toList(protocols));
@@ -126,25 +126,25 @@ class JdkBaseApplicationProtocolNegotiator implements JdkApplicationProtocolNego
         }
     };
 
-    static class NoFailProtocolSelector implements ProtocolSelector {
-        private final JdkSslEngine engineWrapper;
+    protected static class NoFailProtocolSelector implements ProtocolSelector {
+        private final JdkSslEngine jettyWrapper;
         private final Set<String> supportedProtocols;
 
-        NoFailProtocolSelector(JdkSslEngine engineWrapper, Set<String> supportedProtocols) {
-            this.engineWrapper = engineWrapper;
+        public NoFailProtocolSelector(JdkSslEngine jettyWrapper, Set<String> supportedProtocols) {
+            this.jettyWrapper = jettyWrapper;
             this.supportedProtocols = supportedProtocols;
         }
 
         @Override
         public void unsupported() {
-            engineWrapper.setNegotiatedApplicationProtocol(null);
+            jettyWrapper.getSession().setApplicationProtocol(null);
         }
 
         @Override
         public String select(List<String> protocols) throws Exception {
             for (String p : supportedProtocols) {
                 if (protocols.contains(p)) {
-                    engineWrapper.setNegotiatedApplicationProtocol(p);
+                    jettyWrapper.getSession().setApplicationProtocol(p);
                     return p;
                 }
             }
@@ -152,14 +152,14 @@ class JdkBaseApplicationProtocolNegotiator implements JdkApplicationProtocolNego
         }
 
         public String noSelectMatchFound() throws Exception {
-            engineWrapper.setNegotiatedApplicationProtocol(null);
+            jettyWrapper.getSession().setApplicationProtocol(null);
             return null;
         }
     }
 
-    private static final class FailProtocolSelector extends NoFailProtocolSelector {
-        FailProtocolSelector(JdkSslEngine engineWrapper, Set<String> supportedProtocols) {
-            super(engineWrapper, supportedProtocols);
+    protected static final class FailProtocolSelector extends NoFailProtocolSelector {
+        public FailProtocolSelector(JdkSslEngine jettyWrapper, Set<String> supportedProtocols) {
+            super(jettyWrapper, supportedProtocols);
         }
 
         @Override
@@ -168,41 +168,40 @@ class JdkBaseApplicationProtocolNegotiator implements JdkApplicationProtocolNego
         }
     }
 
-    private static class NoFailProtocolSelectionListener implements ProtocolSelectionListener {
-        private final JdkSslEngine engineWrapper;
+    protected static class NoFailProtocolSelectionListener implements ProtocolSelectionListener {
+        private final JdkSslEngine jettyWrapper;
         private final List<String> supportedProtocols;
 
-        NoFailProtocolSelectionListener(JdkSslEngine engineWrapper, List<String> supportedProtocols) {
-            this.engineWrapper = engineWrapper;
+        public NoFailProtocolSelectionListener(JdkSslEngine jettyWrapper, List<String> supportedProtocols) {
+            this.jettyWrapper = jettyWrapper;
             this.supportedProtocols = supportedProtocols;
         }
 
         @Override
         public void unsupported() {
-            engineWrapper.setNegotiatedApplicationProtocol(null);
+            jettyWrapper.getSession().setApplicationProtocol(null);
         }
 
         @Override
         public void selected(String protocol) throws Exception {
             if (supportedProtocols.contains(protocol)) {
-                engineWrapper.setNegotiatedApplicationProtocol(protocol);
+                jettyWrapper.getSession().setApplicationProtocol(protocol);
             } else {
                 noSelectedMatchFound(protocol);
             }
         }
 
-        protected void noSelectedMatchFound(String protocol) throws Exception {
-            // Will never be called.
+        public void noSelectedMatchFound(String protocol) throws Exception {
         }
     }
 
-    private static final class FailProtocolSelectionListener extends NoFailProtocolSelectionListener {
-        FailProtocolSelectionListener(JdkSslEngine engineWrapper, List<String> supportedProtocols) {
-            super(engineWrapper, supportedProtocols);
+    protected static final class FailProtocolSelectionListener extends NoFailProtocolSelectionListener {
+        public FailProtocolSelectionListener(JdkSslEngine jettyWrapper, List<String> supportedProtocols) {
+            super(jettyWrapper, supportedProtocols);
         }
 
         @Override
-        protected void noSelectedMatchFound(String protocol) throws Exception {
+        public void noSelectedMatchFound(String protocol) throws Exception {
             throw new SSLHandshakeException("No compatible protocols found");
         }
     }

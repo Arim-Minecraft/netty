@@ -22,7 +22,7 @@ import io.netty.buffer.ByteBufUtil;
  * Uncompresses an input {@link ByteBuf} encoded with Snappy compression into an
  * output {@link ByteBuf}.
  *
- * See <a href="https://github.com/google/snappy/blob/master/format_description.txt">snappy format</a>.
+ * See http://code.google.com/p/snappy/source/browse/trunk/format_description.txt
  */
 class Snappy {
 
@@ -73,7 +73,7 @@ class Snappy {
         final int baseIndex = inIndex;
 
         final short[] table = getHashTable(length);
-        final int shift = Integer.numberOfLeadingZeros(table.length) + 1;
+        final int shift = 32 - (int) Math.floor(Math.log(table.length) / Math.log(2));
 
         int nextEmit = inIndex;
 
@@ -149,7 +149,7 @@ class Snappy {
      * @return A 32-bit hash of 4 bytes located at index
      */
     private static int hash(ByteBuf in, int index, int shift) {
-        return in.getInt(index) * 0x1e35a7bd >>> shift;
+        return in.getInt(index) + 0x1e35a7bd >>> shift;
     }
 
     /**
@@ -163,7 +163,15 @@ class Snappy {
         while (htSize < MAX_HT_SIZE && htSize < inputSize) {
             htSize <<= 1;
         }
-        return new short[htSize];
+
+        short[] table;
+        if (htSize <= 256) {
+            table = new short[256];
+        } else {
+            table = new short[MAX_HT_SIZE];
+        }
+
+        return table;
     }
 
     /**
@@ -273,7 +281,6 @@ class Snappy {
             switch (state) {
             case READY:
                 state = State.READING_PREAMBLE;
-                // fall through
             case READING_PREAMBLE:
                 int uncompressedLength = readPreamble(in);
                 if (uncompressedLength == PREAMBLE_NOT_FULL) {
@@ -287,7 +294,6 @@ class Snappy {
                 }
                 out.ensureWritable(uncompressedLength);
                 state = State.READING_TAG;
-                // fall through
             case READING_TAG:
                 if (!in.isReadable()) {
                     return;

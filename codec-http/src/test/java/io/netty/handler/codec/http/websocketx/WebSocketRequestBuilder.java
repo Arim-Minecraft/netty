@@ -122,7 +122,7 @@ public class WebSocketRequestBuilder {
         return req;
     }
 
-    public static HttpRequest successful() {
+    public static HttpRequest sucessful() {
         return new WebSocketRequestBuilder().httpVersion(HTTP_1_1)
                 .method(HttpMethod.GET)
                 .uri("/test")

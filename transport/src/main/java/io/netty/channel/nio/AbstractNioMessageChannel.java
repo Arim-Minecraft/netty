@@ -34,7 +34,7 @@ import java.util.List;
 public abstract class AbstractNioMessageChannel extends AbstractNioChannel {
 
     /**
-     * @see AbstractNioChannel#AbstractNioChannel(Channel, SelectableChannel, int)
+     * @see {@link AbstractNioChannel#AbstractNioChannel(Channel, SelectableChannel, int)}
      */
     protected AbstractNioMessageChannel(Channel parent, SelectableChannel ch, int readInterestOp) {
         super(parent, ch, readInterestOp);
@@ -97,7 +97,11 @@ public abstract class AbstractNioMessageChannel extends AbstractNioChannel {
                 pipeline.fireChannelReadComplete();
 
                 if (exception != null) {
-                    closed = closeOnReadError(exception);
+                    if (exception instanceof IOException && !(exception instanceof PortUnreachableException)) {
+                        // ServerChannel should not be closed even on IOException because it can often continue
+                        // accepting incoming connections. (e.g. too many open files)
+                        closed = !(AbstractNioMessageChannel.this instanceof ServerChannel);
+                    }
 
                     pipeline.fireExceptionCaught(exception);
                 }
@@ -153,7 +157,7 @@ public abstract class AbstractNioMessageChannel extends AbstractNioChannel {
                     }
                     break;
                 }
-            } catch (Exception e) {
+            } catch (IOException e) {
                 if (continueOnWriteError()) {
                     in.remove(e);
                 } else {
@@ -168,14 +172,6 @@ public abstract class AbstractNioMessageChannel extends AbstractNioChannel {
      */
     protected boolean continueOnWriteError() {
         return false;
-    }
-
-    protected boolean closeOnReadError(Throwable cause) {
-        // ServerChannel should not be closed even on IOException because it can often continue
-        // accepting incoming connections. (e.g. too many open files)
-        return cause instanceof IOException &&
-                !(cause instanceof PortUnreachableException) &&
-                !(this instanceof ServerChannel);
     }
 
     /**

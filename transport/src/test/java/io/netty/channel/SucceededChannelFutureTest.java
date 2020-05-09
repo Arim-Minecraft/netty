@@ -16,14 +16,14 @@
 package io.netty.channel;
 
 import org.junit.Test;
-import org.mockito.Mockito;
 
+import static org.easymock.EasyMock.*;
 import static org.junit.Assert.*;
 
 public class SucceededChannelFutureTest {
     @Test
     public void testConstantProperties() {
-        Channel channel = Mockito.mock(Channel.class);
+        Channel channel = createMock(Channel.class);
         SucceededChannelFuture future = new SucceededChannelFuture(channel, null);
 
         assertTrue(future.isSuccess());

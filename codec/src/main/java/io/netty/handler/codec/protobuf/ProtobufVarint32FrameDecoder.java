@@ -27,7 +27,7 @@ import com.google.protobuf.CodedInputStream;
 /**
  * A decoder that splits the received {@link ByteBuf}s dynamically by the
  * value of the Google Protocol Buffers
- * <a href="https://developers.google.com/protocol-buffers/docs/encoding#varints">Base
+ * <a href="http://code.google.com/apis/protocolbuffers/docs/encoding.html#varints">Base
  * 128 Varints</a> integer length field in the message.  For example:
  * <pre>
  * BEFORE DECODE (302 bytes)       AFTER DECODE (300 bytes)
@@ -65,7 +65,7 @@ public class ProtobufVarint32FrameDecoder extends ByteToMessageDecoder {
                     in.resetReaderIndex();
                     return;
                 } else {
-                    out.add(in.readSlice(length).retain());
+                    out.add(in.readBytes(length));
                     return;
                 }
             }

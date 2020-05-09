@@ -81,80 +81,75 @@ public final class ThreadLocalRandom extends Random {
 
         // Otherwise, generate one.
         if (initialSeedUniquifier == 0) {
-            boolean secureRandom = SystemPropertyUtil.getBoolean("java.util.secureRandomSeed", false);
-            if (secureRandom) {
-                // Try to generate a real random number from /dev/random.
-                // Get from a different thread to avoid blocking indefinitely on a machine without much entropy.
-                final BlockingQueue<Long> queue = new LinkedBlockingQueue<Long>();
-                Thread generatorThread = new Thread("initialSeedUniquifierGenerator") {
-                    @Override
-                    public void run() {
-                        SecureRandom random = new SecureRandom(); // Get the real random seed from /dev/random
-                        final byte[] seed = random.generateSeed(8);
-                        long s = ((long) seed[0] & 0xff) << 56 |
+            // Try to generate a real random number from /dev/random.
+            // Get from a different thread to avoid blocking indefinitely on a machine without much entropy.
+            final BlockingQueue<byte[]> queue = new LinkedBlockingQueue<byte[]>();
+            Thread generatorThread = new Thread("initialSeedUniquifierGenerator") {
+                @Override
+                public void run() {
+                    SecureRandom random = new SecureRandom(); // Get the real random seed from /dev/random
+                    queue.add(random.generateSeed(8));
+                }
+            };
+            generatorThread.setDaemon(true);
+            generatorThread.start();
+            generatorThread.setUncaughtExceptionHandler(new UncaughtExceptionHandler() {
+                @Override
+                public void uncaughtException(Thread t, Throwable e) {
+                    logger.debug("An exception has been raised by {}", t.getName(), e);
+                }
+            });
+
+            // Get the random seed from the thread with timeout.
+            final long timeoutSeconds = 3;
+            final long deadLine = System.nanoTime() + TimeUnit.SECONDS.toNanos(timeoutSeconds);
+            boolean interrupted = false;
+            for (;;) {
+                long waitTime = deadLine - System.nanoTime();
+                if (waitTime <= 0) {
+                    generatorThread.interrupt();
+                    logger.warn(
+                            "Failed to generate a seed from SecureRandom within {} seconds. " +
+                                    "Not enough entrophy?", timeoutSeconds
+                    );
+                    break;
+                }
+
+                try {
+                    byte[] seed = queue.poll(waitTime, TimeUnit.NANOSECONDS);
+                    if (seed != null) {
+                        initialSeedUniquifier =
+                                ((long) seed[0] & 0xff) << 56 |
                                 ((long) seed[1] & 0xff) << 48 |
                                 ((long) seed[2] & 0xff) << 40 |
                                 ((long) seed[3] & 0xff) << 32 |
                                 ((long) seed[4] & 0xff) << 24 |
                                 ((long) seed[5] & 0xff) << 16 |
                                 ((long) seed[6] & 0xff) <<  8 |
-                                (long) seed[7] & 0xff;
-                        queue.add(s);
-                    }
-                };
-                generatorThread.setDaemon(true);
-                generatorThread.start();
-                generatorThread.setUncaughtExceptionHandler(new UncaughtExceptionHandler() {
-                    @Override
-                    public void uncaughtException(Thread t, Throwable e) {
-                        logger.debug("An exception has been raised by {}", t.getName(), e);
-                    }
-                });
-
-                // Get the random seed from the thread with timeout.
-                final long timeoutSeconds = 3;
-                final long deadLine = System.nanoTime() + TimeUnit.SECONDS.toNanos(timeoutSeconds);
-                boolean interrupted = false;
-                for (;;) {
-                    long waitTime = deadLine - System.nanoTime();
-                    if (waitTime <= 0) {
-                        generatorThread.interrupt();
-                        logger.warn(
-                                "Failed to generate a seed from SecureRandom within {} seconds. " +
-                                        "Not enough entrophy?", timeoutSeconds
-                        );
+                                 (long) seed[7] & 0xff;
                         break;
                     }
-
-                    try {
-                        Long seed = queue.poll(waitTime, TimeUnit.NANOSECONDS);
-                        if (seed != null) {
-                            initialSeedUniquifier = seed;
-                            break;
-                        }
-                    } catch (InterruptedException e) {
-                        interrupted = true;
-                        logger.warn("Failed to generate a seed from SecureRandom due to an InterruptedException.");
-                        break;
-                    }
+                } catch (InterruptedException e) {
+                    interrupted = true;
+                    logger.warn("Failed to generate a seed from SecureRandom due to an InterruptedException.");
+                    break;
                 }
-
-                // Just in case the initialSeedUniquifier is zero or some other constant
-                initialSeedUniquifier ^= 0x3255ecdc33bae119L; // just a meaningless random number
-                initialSeedUniquifier ^= Long.reverse(System.nanoTime());
-
-                if (interrupted) {
-                    // Restore the interrupt status because we don't know how to/don't need to handle it here.
-                    Thread.currentThread().interrupt();
-
-                    // Interrupt the generator thread if it's still running,
-                    // in the hope that the SecureRandom provider raises an exception on interruption.
-                    generatorThread.interrupt();
-                }
-            } else {
-                initialSeedUniquifier = mix64(System.currentTimeMillis()) ^ mix64(System.nanoTime());
             }
+
+            // Just in case the initialSeedUniquifier is zero or some other constant
+            initialSeedUniquifier ^= 0x3255ecdc33bae119L; // just a meaningless random number
+            initialSeedUniquifier ^= Long.reverse(System.nanoTime());
+
             ThreadLocalRandom.initialSeedUniquifier = initialSeedUniquifier;
+
+            if (interrupted) {
+                // Restore the interrupt status because we don't know how to/don't need to handle it here.
+                Thread.currentThread().interrupt();
+
+                // Interrupt the generator thread if it's still running,
+                // in the hope that the SecureRandom provider raises an exception on interruption.
+                generatorThread.interrupt();
+            }
         }
 
         return initialSeedUniquifier;
@@ -178,14 +173,6 @@ public final class ThreadLocalRandom extends Random {
                 return next ^ System.nanoTime();
             }
         }
-    }
-
-    // Borrowed from
-    // http://gee.cs.oswego.edu/cgi-bin/viewcvs.cgi/jsr166/src/main/java/util/concurrent/ThreadLocalRandom.java
-    private static long mix64(long z) {
-        z = (z ^ (z >>> 33)) * 0xff51afd7ed558ccdL;
-        z = (z ^ (z >>> 33)) * 0xc4ceb9fe1a85ec53L;
-        return z ^ (z >>> 33);
     }
 
     // same constants as Random, but must be redeclared because private

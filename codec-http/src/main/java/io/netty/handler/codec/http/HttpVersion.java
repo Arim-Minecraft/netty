@@ -60,7 +60,7 @@ public class HttpVersion implements Comparable<HttpVersion> {
         text = text.trim();
 
         if (text.isEmpty()) {
-            throw new IllegalArgumentException("text is empty (possibly HTTP/0.9)");
+            throw new IllegalArgumentException("text is empty");
         }
 
         // Try to match without convert to uppercase first as this is what 99% of all clients

@@ -21,7 +21,6 @@ import io.netty.handler.codec.ReplayingDecoder;
 import io.netty.handler.codec.socks.SocksInitRequestDecoder.State;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 /**
@@ -39,6 +38,11 @@ public class SocksInitRequestDecoder extends ReplayingDecoder<State> {
         return name;
     }
 
+    private final List<SocksAuthScheme> authSchemes = new ArrayList<SocksAuthScheme>();
+    private SocksProtocolVersion version;
+    private byte authSchemeNum;
+    private SocksRequest msg = SocksCommonUtils.UNKNOWN_SOCKS_REQUEST;
+
     public SocksInitRequestDecoder() {
         super(State.CHECK_PROTOCOL_VERSION);
     }
@@ -47,31 +51,24 @@ public class SocksInitRequestDecoder extends ReplayingDecoder<State> {
     protected void decode(ChannelHandlerContext ctx, ByteBuf byteBuf, List<Object> out) throws Exception {
         switch (state()) {
             case CHECK_PROTOCOL_VERSION: {
-                if (byteBuf.readByte() != SocksProtocolVersion.SOCKS5.byteValue()) {
-                    out.add(SocksCommonUtils.UNKNOWN_SOCKS_REQUEST);
+                version = SocksProtocolVersion.valueOf(byteBuf.readByte());
+                if (version != SocksProtocolVersion.SOCKS5) {
                     break;
                 }
                 checkpoint(State.READ_AUTH_SCHEMES);
             }
             case READ_AUTH_SCHEMES: {
-                final byte authSchemeNum = byteBuf.readByte();
-                final List<SocksAuthScheme> authSchemes;
-                if (authSchemeNum > 0) {
-                    authSchemes = new ArrayList<SocksAuthScheme>(authSchemeNum);
-                    for (int i = 0; i < authSchemeNum; i++) {
-                        authSchemes.add(SocksAuthScheme.valueOf(byteBuf.readByte()));
-                    }
-                } else {
-                    authSchemes = Collections.emptyList();
+                authSchemes.clear();
+                authSchemeNum = byteBuf.readByte();
+                for (int i = 0; i < authSchemeNum; i++) {
+                    authSchemes.add(SocksAuthScheme.valueOf(byteBuf.readByte()));
                 }
-                out.add(new SocksInitRequest(authSchemes));
+                msg = new SocksInitRequest(authSchemes);
                 break;
-            }
-            default: {
-                throw new Error();
             }
         }
         ctx.pipeline().remove(this);
+        out.add(msg);
     }
 
     enum State {

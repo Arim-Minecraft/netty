@@ -41,50 +41,18 @@ import static io.netty.handler.codec.http.HttpHeaders.removeTransferEncodingChun
  * or {@link FullHttpResponse} (depending on if it used to handle requests or responses)
  * with no following {@link HttpContent}s.  It is useful when you don't want to take
  * care of HTTP messages whose transfer encoding is 'chunked'.  Insert this
- * handler after {@link HttpResponseDecoder} in the {@link ChannelPipeline} if being used to handle
- * responses, or after {@link HttpRequestDecoder} and {@link HttpResponseEncoder} in the
- * {@link ChannelPipeline} if being used to handle requests.
- * <blockquote>
- *  <pre>
- *  {@link ChannelPipeline} p = ...;
- *  ...
- *  p.addLast("decoder", <b>new {@link HttpRequestDecoder}()</b>);
- *  p.addLast("encoder", <b>new {@link HttpResponseEncoder}()</b>);
- *  p.addLast("aggregator", <b>new {@link HttpObjectAggregator}(1048576)</b>);
- *  ...
- *  p.addLast("handler", new HttpRequestHandler());
- *  </pre>
- * </blockquote>
- * <p>
- * For convenience, consider putting a {@link HttpServerCodec} before the {@link HttpObjectAggregator}
- * as it functions as both a {@link HttpRequestDecoder} and a {@link HttpResponseEncoder}.
- * </p>
- * Be aware that {@link HttpObjectAggregator} may end up sending a {@link HttpResponse}:
- * <table border summary="Possible Responses">
- *   <tbody>
- *     <tr>
- *       <th>Response Status</th>
- *       <th>Condition When Sent</th>
- *     </tr>
- *     <tr>
- *       <td>100 Continue</td>
- *       <td>A '100-continue' expectation is received and the 'content-length' doesn't exceed maxContentLength</td>
- *     </tr>
- *     <tr>
- *       <td>417 Expectation Failed</td>
- *       <td>A '100-continue' expectation is received and the 'content-length' exceeds maxContentLength</td>
- *     </tr>
- *     <tr>
- *       <td>413 Request Entity Too Large</td>
- *       <td>Either the 'content-length' or the bytes received so far exceed maxContentLength</td>
- *     </tr>
- *   </tbody>
- * </table>
- *
- * @see FullHttpRequest
- * @see FullHttpResponse
- * @see HttpResponseDecoder
- * @see HttpServerCodec
+ * handler after {@link HttpObjectDecoder} in the {@link ChannelPipeline}:
+ * <pre>
+ * {@link ChannelPipeline} p = ...;
+ * ...
+ * p.addLast("encoder", new {@link HttpResponseEncoder}());
+ * p.addLast("decoder", new {@link HttpRequestDecoder}());
+ * p.addLast("aggregator", <b>new {@link HttpObjectAggregator}(1048576)</b>);
+ * ...
+ * p.addLast("handler", new HttpRequestHandler());
+ * </pre>
+ * Be aware that you need to have the {@link HttpResponseEncoder} or {@link HttpRequestEncoder}
+ * before the {@link HttpObjectAggregator} in the {@link ChannelPipeline}.
  */
 public class HttpObjectAggregator extends MessageToMessageDecoder<HttpObject> {
     public static final int DEFAULT_MAX_COMPOSITEBUFFER_COMPONENTS = 1024;
@@ -99,6 +67,7 @@ public class HttpObjectAggregator extends MessageToMessageDecoder<HttpObject> {
 
     private final int maxContentLength;
     private AggregatedFullHttpMessage currentMessage;
+    private boolean tooLongFrameFound;
     private final boolean closeOnExpectationFailed;
 
     private int maxCumulationBufferComponents = DEFAULT_MAX_COMPOSITEBUFFER_COMPONENTS;
@@ -167,17 +136,18 @@ public class HttpObjectAggregator extends MessageToMessageDecoder<HttpObject> {
 
     @Override
     protected void decode(final ChannelHandlerContext ctx, HttpObject msg, List<Object> out) throws Exception {
+        AggregatedFullHttpMessage currentMessage = this.currentMessage;
+
         if (msg instanceof HttpMessage) {
-            if (currentMessage != null) {
-                currentMessage.release();
-                currentMessage = null;
-                throw new IllegalStateException("Start of new message received before existing message completed.");
-            }
+            tooLongFrameFound = false;
+            assert currentMessage == null;
+
             HttpMessage m = (HttpMessage) msg;
 
             // Handle the 'Expect: 100-continue' header if necessary.
             if (is100ContinueExpected(m)) {
                 if (HttpHeaders.getContentLength(m, 0) > maxContentLength) {
+                    tooLongFrameFound = true;
                     final ChannelFuture future = ctx.writeAndFlush(EXPECTATION_FAILED.duplicate().retain());
                     future.addListener(new ChannelFutureListener() {
                         @Override
@@ -206,16 +176,18 @@ public class HttpObjectAggregator extends MessageToMessageDecoder<HttpObject> {
             if (!m.getDecoderResult().isSuccess()) {
                 removeTransferEncodingChunked(m);
                 out.add(toFullMessage(m));
+                this.currentMessage = null;
                 return;
             }
             if (msg instanceof HttpRequest) {
                 HttpRequest header = (HttpRequest) msg;
-                currentMessage = new AggregatedFullHttpRequest(
+                this.currentMessage = currentMessage = new AggregatedFullHttpRequest(
                         header, ctx.alloc().compositeBuffer(maxCumulationBufferComponents), null);
             } else if (msg instanceof HttpResponse) {
                 HttpResponse header = (HttpResponse) msg;
-                currentMessage = new AggregatedFullHttpResponse(
-                        header, ctx.alloc().compositeBuffer(maxCumulationBufferComponents), null);
+                this.currentMessage = currentMessage = new AggregatedFullHttpResponse(
+                        header,
+                        Unpooled.compositeBuffer(maxCumulationBufferComponents), null);
             } else {
                 throw new Error();
             }
@@ -223,20 +195,25 @@ public class HttpObjectAggregator extends MessageToMessageDecoder<HttpObject> {
             // A streamed message - initialize the cumulative buffer, and wait for incoming chunks.
             removeTransferEncodingChunked(currentMessage);
         } else if (msg instanceof HttpContent) {
-            if (currentMessage == null) {
-                // it is possible that a TooLongFrameException was already thrown but we can still discard data
-                // until the begging of the next request/response.
+            if (tooLongFrameFound) {
+                if (msg instanceof LastHttpContent) {
+                    this.currentMessage = null;
+                }
+                // already detect the too long frame so just discard the content
                 return;
             }
+            assert currentMessage != null;
 
             // Merge the received chunk into the content of the current message.
             HttpContent chunk = (HttpContent) msg;
             CompositeByteBuf content = (CompositeByteBuf) currentMessage.content();
 
             if (content.readableBytes() > maxContentLength - chunk.content().readableBytes()) {
+                tooLongFrameFound = true;
+
                 // release current message to prevent leaks
                 currentMessage.release();
-                currentMessage = null;
+                this.currentMessage = null;
 
                 throw new TooLongFrameException(
                         "HTTP content length exceeded " + maxContentLength +
@@ -245,7 +222,9 @@ public class HttpObjectAggregator extends MessageToMessageDecoder<HttpObject> {
 
             // Append the content of the chunk
             if (chunk.content().isReadable()) {
-                content.addComponent(true, chunk.content().retain());
+                chunk.retain();
+                content.addComponent(chunk.content());
+                content.writerIndex(content.writerIndex() + chunk.content().readableBytes());
             }
 
             final boolean last;
@@ -258,6 +237,8 @@ public class HttpObjectAggregator extends MessageToMessageDecoder<HttpObject> {
             }
 
             if (last) {
+                this.currentMessage = null;
+
                 // Merge trailing headers into the message.
                 if (chunk instanceof LastHttpContent) {
                     LastHttpContent trailer = (LastHttpContent) chunk;
@@ -277,9 +258,7 @@ public class HttpObjectAggregator extends MessageToMessageDecoder<HttpObject> {
                             Names.CONTENT_LENGTH,
                             String.valueOf(content.readableBytes()));
                 }
-                // Set our currentMessage member variable to null in case adding to out will cause re-entry.
-                AggregatedFullHttpMessage currentMessage = this.currentMessage;
-                this.currentMessage = null;
+                // All done
                 out.add(currentMessage);
             }
         } else {
@@ -289,11 +268,12 @@ public class HttpObjectAggregator extends MessageToMessageDecoder<HttpObject> {
 
     @Override
     public void channelInactive(ChannelHandlerContext ctx) throws Exception {
-        try {
-            super.channelInactive(ctx);
-        } finally {
-            // release current message if it is not null as it may be a left-over
-            releaseCurrentMessage();
+        super.channelInactive(ctx);
+
+        // release current message if it is not null as it may be a left-over
+        if (currentMessage != null) {
+            currentMessage.release();
+            currentMessage = null;
         }
     }
 
@@ -304,16 +284,9 @@ public class HttpObjectAggregator extends MessageToMessageDecoder<HttpObject> {
 
     @Override
     public void handlerRemoved(ChannelHandlerContext ctx) throws Exception {
-        try {
-            super.handlerRemoved(ctx);
-        } finally {
-            // release current message if it is not null as it may be a left-over as there is not much more we can do in
-            // this case
-            releaseCurrentMessage();
-        }
-    }
-
-    private void releaseCurrentMessage() {
+        super.handlerRemoved(ctx);
+        // release current message if it is not null as it may be a left-over as there is not much more we can do in
+        // this case
         if (currentMessage != null) {
             currentMessage.release();
             currentMessage = null;

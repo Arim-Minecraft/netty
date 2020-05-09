@@ -21,10 +21,7 @@ import java.nio.ByteBuffer;
 /**
  * Abstract base class for {@link ByteBuf} implementations that wrap another
  * {@link ByteBuf}.
- *
- * @deprecated Do not use.
  */
-@Deprecated
 public abstract class AbstractDerivedByteBuf extends AbstractByteBuf {
 
     protected AbstractDerivedByteBuf(int maxCapacity) {

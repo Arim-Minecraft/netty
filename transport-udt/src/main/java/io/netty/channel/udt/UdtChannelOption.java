@@ -20,10 +20,7 @@ import io.netty.channel.ChannelOption;
 
 /**
  * Options for the UDT transport
- *
- * @deprecated The UDT transport is no longer maintained and will be removed.
  */
-@Deprecated
 public final class UdtChannelOption<T> extends ChannelOption<T> {
 
     /**

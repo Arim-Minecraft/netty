@@ -74,9 +74,6 @@ public class DefaultSctpChannelConfig extends DefaultChannelConfig implements Sc
         if (option == SCTP_NODELAY) {
             return (T) Boolean.valueOf(isSctpNoDelay());
         }
-        if (option == SCTP_INIT_MAXSTREAMS) {
-            return (T) getInitMaxStreams();
-        }
         return super.getOption(option);
     }
 

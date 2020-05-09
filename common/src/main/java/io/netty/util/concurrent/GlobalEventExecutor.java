@@ -18,8 +18,6 @@ package io.netty.util.concurrent;
 import io.netty.util.internal.logging.InternalLogger;
 import io.netty.util.internal.logging.InternalLoggerFactory;
 
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.Queue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.Executors;
@@ -51,12 +49,7 @@ public final class GlobalEventExecutor extends AbstractScheduledEventExecutor {
         }
     }, null), ScheduledFutureTask.deadlineNanos(SCHEDULE_QUIET_PERIOD_INTERVAL), -SCHEDULE_QUIET_PERIOD_INTERVAL);
 
-    // because the GlobalEventExecutor is a singleton, tasks submitted to it can come from arbitrary threads and this
-    // can trigger the creation of a thread from arbitrary thread groups; for this reason, the thread factory must not
-    // be sticky about its thread group
-    // visible for testing
-    final ThreadFactory threadFactory =
-            new DefaultThreadFactory(DefaultThreadFactory.toPoolName(getClass()), false, Thread.NORM_PRIORITY, null);
+    private final ThreadFactory threadFactory = new DefaultThreadFactory(getClass());
     private final TaskRunner taskRunner = new TaskRunner();
     private final AtomicBoolean started = new AtomicBoolean();
     volatile Thread thread;
@@ -115,11 +108,15 @@ public final class GlobalEventExecutor extends AbstractScheduledEventExecutor {
     }
 
     private void fetchFromScheduledTaskQueue() {
-        long nanoTime = AbstractScheduledEventExecutor.nanoTime();
-        Runnable scheduledTask = pollScheduledTask(nanoTime);
-        while (scheduledTask != null) {
-            taskQueue.add(scheduledTask);
-            scheduledTask = pollScheduledTask(nanoTime);
+        if (hasScheduledTasks()) {
+            long nanoTime = AbstractScheduledEventExecutor.nanoTime();
+            for (;;) {
+                Runnable scheduledTask = pollScheduledTask(nanoTime);
+                if (scheduledTask == null) {
+                    break;
+                }
+                taskQueue.add(scheduledTask);
+            }
         }
     }
 
@@ -220,20 +217,7 @@ public final class GlobalEventExecutor extends AbstractScheduledEventExecutor {
 
     private void startThread() {
         if (started.compareAndSet(false, true)) {
-            final Thread t = threadFactory.newThread(taskRunner);
-            // Set to null to ensure we not create classloader leaks by holds a strong reference to the inherited
-            // classloader.
-            // See:
-            // - https://github.com/netty/netty/issues/7290
-            // - https://bugs.openjdk.java.net/browse/JDK-7008595
-            AccessController.doPrivileged(new PrivilegedAction<Void>() {
-                @Override
-                public Void run() {
-                    t.setContextClassLoader(null);
-                    return null;
-                }
-            });
-
+            Thread t = threadFactory.newThread(taskRunner);
             // Set the thread before starting it as otherwise inEventLoop() may return false and so produce
             // an assert error.
             // See https://github.com/netty/netty/issues/4357

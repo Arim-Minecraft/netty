@@ -63,12 +63,16 @@ public class MemoryFileUpload extends AbstractMemoryHttpData implements FileUplo
 
     @Override
     public int hashCode() {
-        return FileUploadUtil.hashCode(this);
+        return getName().hashCode();
     }
 
     @Override
     public boolean equals(Object o) {
-        return o instanceof FileUpload && FileUploadUtil.equals(this, (FileUpload) o);
+        if (!(o instanceof Attribute)) {
+            return false;
+        }
+        Attribute attribute = (Attribute) o;
+        return getName().equalsIgnoreCase(attribute.getName());
     }
 
     @Override
@@ -81,7 +85,13 @@ public class MemoryFileUpload extends AbstractMemoryHttpData implements FileUplo
     }
 
     public int compareTo(FileUpload o) {
-        return FileUploadUtil.compareTo(this, o);
+        int v;
+        v = getName().compareToIgnoreCase(o.getName());
+        if (v != 0) {
+            return v;
+        }
+        // TODO should we compare size for instance ?
+        return v;
     }
 
     @Override

@@ -20,9 +20,10 @@ import io.netty.handler.codec.http.HttpContent;
 import java.util.List;
 
 /**
- * This decoder will decode Body and can handle POST BODY.
+ * This decoder will decode Body and can handle POST BODY (or for PUT, PATCH or OPTIONS).
  *
  * You <strong>MUST</strong> call {@link #destroy()} after completion to release all resources.
+ *
  */
 public interface InterfaceHttpPostRequestDecoder {
     /**

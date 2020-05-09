@@ -200,60 +200,31 @@ final class PoolSubpage<T> implements PoolSubpageMetric {
 
     @Override
     public String toString() {
-        final boolean doNotDestroy;
-        final int maxNumElems;
-        final int numAvail;
-        final int elemSize;
-        synchronized (chunk.arena) {
-            if (!this.doNotDestroy) {
-                doNotDestroy = false;
-                // Not used for creating the String.
-                maxNumElems = numAvail = elemSize = -1;
-            } else {
-                doNotDestroy = true;
-                maxNumElems = this.maxNumElems;
-                numAvail = this.numAvail;
-                elemSize = this.elemSize;
-            }
-        }
-
         if (!doNotDestroy) {
             return "(" + memoryMapIdx + ": not in use)";
         }
 
-        return "(" + memoryMapIdx + ": " + (maxNumElems - numAvail) + '/' + maxNumElems +
-                ", offset: " + runOffset + ", length: " + pageSize + ", elemSize: " + elemSize + ')';
+        return String.valueOf('(') + memoryMapIdx + ": " + (maxNumElems - numAvail) + '/' + maxNumElems +
+               ", offset: " + runOffset + ", length: " + pageSize + ", elemSize: " + elemSize + ')';
     }
 
     @Override
     public int maxNumElements() {
-        synchronized (chunk.arena) {
-            return maxNumElems;
-        }
+        return maxNumElems;
     }
 
     @Override
     public int numAvailable() {
-        synchronized (chunk.arena) {
-            return numAvail;
-        }
+        return numAvail;
     }
 
     @Override
     public int elementSize() {
-        synchronized (chunk.arena) {
-            return elemSize;
-        }
+        return elemSize;
     }
 
     @Override
     public int pageSize() {
         return pageSize;
-    }
-
-    void destroy() {
-        if (chunk != null) {
-            chunk.destroy();
-        }
     }
 }

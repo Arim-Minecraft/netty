@@ -48,7 +48,6 @@ import io.netty.handler.codec.http.websocketx.PongWebSocketFrame;
 import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
 import io.netty.handler.codec.http.websocketx.WebSocketClientHandshaker;
 import io.netty.handler.codec.http.websocketx.WebSocketFrame;
-import io.netty.handler.codec.http.websocketx.WebSocketHandshakeException;
 import io.netty.util.CharsetUtil;
 
 public class WebSocketClientHandler extends SimpleChannelInboundHandler<Object> {
@@ -83,14 +82,9 @@ public class WebSocketClientHandler extends SimpleChannelInboundHandler<Object> 
     public void channelRead0(ChannelHandlerContext ctx, Object msg) throws Exception {
         Channel ch = ctx.channel();
         if (!handshaker.isHandshakeComplete()) {
-            try {
-                handshaker.finishHandshake(ch, (FullHttpResponse) msg);
-                System.out.println("WebSocket Client connected!");
-                handshakeFuture.setSuccess();
-            } catch (WebSocketHandshakeException e) {
-                System.out.println("WebSocket Client failed to connect");
-                handshakeFuture.setFailure(e);
-            }
+            handshaker.finishHandshake(ch, (FullHttpResponse) msg);
+            System.out.println("WebSocket Client connected!");
+            handshakeFuture.setSuccess();
             return;
         }
 

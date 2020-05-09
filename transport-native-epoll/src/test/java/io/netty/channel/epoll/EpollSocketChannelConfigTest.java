@@ -18,12 +18,10 @@ package io.netty.channel.epoll;
 import static org.junit.Assert.*;
 import static org.junit.Assume.*;
 import io.netty.bootstrap.Bootstrap;
-import io.netty.channel.ChannelException;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.channel.EventLoopGroup;
 
 import java.net.InetSocketAddress;
-import java.nio.channels.ClosedChannelException;
 import java.util.Random;
 
 import org.junit.AfterClass;
@@ -49,18 +47,14 @@ public class EpollSocketChannelConfigTest {
 
     @AfterClass
     public static void after() {
-        try {
-            ch.close().syncUninterruptibly();
-        } finally {
-            group.shutdownGracefully();
-        }
+        group.shutdownGracefully();
     }
 
-    private static long randLong(long min, long max) {
+    private long randLong(long min, long max) {
         return min + nextLong(max - min + 1);
     }
 
-    private static long nextLong(long n) {
+    private long nextLong(long n) {
         long bits, val;
         do {
            bits = (rand.nextLong() << 1) >>> 1;
@@ -115,35 +109,5 @@ public class EpollSocketChannelConfigTest {
         assertFalse(ch.config().isTcpCork());
         ch.config().setTcpCork(true);
         assertTrue(ch.config().isTcpCork());
-    }
-
-    @Test
-    public void testTcpQickAck() {
-        ch.config().setTcpQuickAck(false);
-        assertFalse(ch.config().isTcpQuickAck());
-        ch.config().setTcpQuickAck(true);
-        assertTrue(ch.config().isTcpQuickAck());
-    }
-
-    @Test
-    public void testSetOptionWhenClosed() {
-        ch.close().syncUninterruptibly();
-        try {
-            ch.config().setSoLinger(0);
-            fail();
-        } catch (ChannelException e) {
-            assertTrue(e.getCause() instanceof ClosedChannelException);
-        }
-    }
-
-    @Test
-    public void testGetOptionWhenClosed() {
-        ch.close().syncUninterruptibly();
-        try {
-        ch.config().getSoLinger();
-            fail();
-        } catch (ChannelException e) {
-            assertTrue(e.getCause() instanceof ClosedChannelException);
-        }
     }
 }

@@ -18,25 +18,19 @@ package io.netty.channel.unix;
 import io.netty.channel.epoll.Epoll;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.BeforeClass;
 import org.junit.Test;
 
-import java.io.File;
 import java.io.IOException;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotEquals;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assume.assumeTrue;
+import static org.junit.Assert.*;
 
 public class SocketTest {
-    private Socket socket;
 
-    @BeforeClass
-    public static void beforeClass() {
-        assumeTrue(Epoll.isAvailable());
+    static {
+        Epoll.ensureAvailability();
     }
+
+    private Socket socket;
 
     @Before
     public void setup() {
@@ -101,31 +95,5 @@ public class SocketTest {
         Socket socket = Socket.newSocketStream();
         socket.close();
         socket.close();
-    }
-
-    @Test
-    public void testPeerCreds() throws IOException {
-        Socket s1 = Socket.newSocketDomain();
-        Socket s2 = Socket.newSocketDomain();
-        File domainSocketFile = null;
-
-        try {
-            domainSocketFile = File.createTempFile("netty-test", "sckt");
-            DomainSocketAddress dsa = new DomainSocketAddress(domainSocketFile);
-            s1.bind(dsa);
-            s1.listen(1);
-
-            assertTrue(s2.connect(dsa));
-            byte [] addr = new byte[64];
-            s1.accept(addr);
-            PeerCredentials pc = s1.getPeerCredentials();
-            assertNotEquals(pc.uid(), -1);
-        } finally {
-            s1.close();
-            s2.close();
-            if (domainSocketFile != null) {
-                domainSocketFile.delete();
-            }
-        }
     }
 }

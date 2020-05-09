@@ -150,20 +150,18 @@ public class SingleThreadEventLoopTest {
                    is(greaterThanOrEqualTo(TimeUnit.MILLISECONDS.toNanos(500))));
     }
 
-    @Test(timeout = 5000)
+    @Test
     public void scheduleTaskAtFixedRateA() throws Exception {
         testScheduleTaskAtFixedRate(loopA);
     }
 
-    @Test(timeout = 5000)
+    @Test
     public void scheduleTaskAtFixedRateB() throws Exception {
         testScheduleTaskAtFixedRate(loopB);
     }
 
     private static void testScheduleTaskAtFixedRate(EventLoop loopA) throws InterruptedException {
         final Queue<Long> timestamps = new LinkedBlockingQueue<Long>();
-        final int expectedTimeStamps = 5;
-        final CountDownLatch allTimeStampsLatch = new CountDownLatch(expectedTimeStamps);
         ScheduledFuture<?> f = loopA.scheduleAtFixedRate(new Runnable() {
             @Override
             public void run() {
@@ -173,13 +171,11 @@ public class SingleThreadEventLoopTest {
                 } catch (InterruptedException e) {
                     // Ignore
                 }
-                allTimeStampsLatch.countDown();
             }
         }, 100, 100, TimeUnit.MILLISECONDS);
-        allTimeStampsLatch.await();
+        Thread.sleep(550);
         assertTrue(f.cancel(true));
-        Thread.sleep(300);
-        assertEquals(expectedTimeStamps, timestamps.size());
+        assertEquals(5, timestamps.size());
 
         // Check if the task was run without a lag.
         Long firstTimestamp = null;
@@ -198,20 +194,18 @@ public class SingleThreadEventLoopTest {
         }
     }
 
-    @Test(timeout = 5000)
+    @Test
     public void scheduleLaggyTaskAtFixedRateA() throws Exception {
         testScheduleLaggyTaskAtFixedRate(loopA);
     }
 
-    @Test(timeout = 5000)
+    @Test
     public void scheduleLaggyTaskAtFixedRateB() throws Exception {
         testScheduleLaggyTaskAtFixedRate(loopB);
     }
 
     private static void testScheduleLaggyTaskAtFixedRate(EventLoop loopA) throws InterruptedException {
         final Queue<Long> timestamps = new LinkedBlockingQueue<Long>();
-        final int expectedTimeStamps = 5;
-        final CountDownLatch allTimeStampsLatch = new CountDownLatch(expectedTimeStamps);
         ScheduledFuture<?> f = loopA.scheduleAtFixedRate(new Runnable() {
             @Override
             public void run() {
@@ -224,13 +218,11 @@ public class SingleThreadEventLoopTest {
                         // Ignore
                     }
                 }
-                allTimeStampsLatch.countDown();
             }
         }, 100, 100, TimeUnit.MILLISECONDS);
-        allTimeStampsLatch.await();
+        Thread.sleep(550);
         assertTrue(f.cancel(true));
-        Thread.sleep(300);
-        assertEquals(expectedTimeStamps, timestamps.size());
+        assertEquals(5, timestamps.size());
 
         // Check if the task was run with lag.
         int i = 0;
@@ -252,20 +244,18 @@ public class SingleThreadEventLoopTest {
         }
     }
 
-    @Test(timeout = 5000)
+    @Test
     public void scheduleTaskWithFixedDelayA() throws Exception {
         testScheduleTaskWithFixedDelay(loopA);
     }
 
-    @Test(timeout = 5000)
+    @Test
     public void scheduleTaskWithFixedDelayB() throws Exception {
         testScheduleTaskWithFixedDelay(loopB);
     }
 
     private static void testScheduleTaskWithFixedDelay(EventLoop loopA) throws InterruptedException {
         final Queue<Long> timestamps = new LinkedBlockingQueue<Long>();
-        final int expectedTimeStamps = 3;
-        final CountDownLatch allTimeStampsLatch = new CountDownLatch(expectedTimeStamps);
         ScheduledFuture<?> f = loopA.scheduleWithFixedDelay(new Runnable() {
             @Override
             public void run() {
@@ -275,13 +265,11 @@ public class SingleThreadEventLoopTest {
                 } catch (InterruptedException e) {
                     // Ignore
                 }
-                allTimeStampsLatch.countDown();
             }
         }, 100, 100, TimeUnit.MILLISECONDS);
-        allTimeStampsLatch.await();
+        Thread.sleep(500);
         assertTrue(f.cancel(true));
-        Thread.sleep(300);
-        assertEquals(expectedTimeStamps, timestamps.size());
+        assertEquals(3, timestamps.size());
 
         // Check if the task was run without a lag.
         Long previousTimestamp = null;

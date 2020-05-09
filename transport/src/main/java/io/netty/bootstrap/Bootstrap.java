@@ -23,6 +23,7 @@ import io.netty.channel.ChannelPipeline;
 import io.netty.channel.ChannelPromise;
 import io.netty.channel.EventLoopGroup;
 import io.netty.util.AttributeKey;
+import io.netty.util.internal.OneTimeTask;
 import io.netty.util.internal.logging.InternalLogger;
 import io.netty.util.internal.logging.InternalLoggerFactory;
 
@@ -62,7 +63,7 @@ public class Bootstrap extends AbstractBootstrap<Bootstrap, Channel> {
     }
 
     /**
-     * @see #remoteAddress(SocketAddress)
+     * @see {@link #remoteAddress(SocketAddress)}
      */
     public Bootstrap remoteAddress(String inetHost, int inetPort) {
         remoteAddress = new InetSocketAddress(inetHost, inetPort);
@@ -70,7 +71,7 @@ public class Bootstrap extends AbstractBootstrap<Bootstrap, Channel> {
     }
 
     /**
-     * @see #remoteAddress(SocketAddress)
+     * @see {@link #remoteAddress(SocketAddress)}
      */
     public Bootstrap remoteAddress(InetAddress inetHost, int inetPort) {
         remoteAddress = new InetSocketAddress(inetHost, inetPort);
@@ -128,7 +129,7 @@ public class Bootstrap extends AbstractBootstrap<Bootstrap, Channel> {
     }
 
     /**
-     * @see #connect()
+     * @see {@link #connect()}
      */
     private ChannelFuture doConnect(final SocketAddress remoteAddress, final SocketAddress localAddress) {
         final ChannelFuture regFuture = initAndRegister();
@@ -158,7 +159,7 @@ public class Bootstrap extends AbstractBootstrap<Bootstrap, Channel> {
 
         // This method is invoked before channelRegistered() is triggered.  Give user handlers a chance to set up
         // the pipeline in its channelRegistered() implementation.
-        channel.eventLoop().execute(new Runnable() {
+        channel.eventLoop().execute(new OneTimeTask() {
             @Override
             public void run() {
                 if (regFuture.isSuccess()) {
@@ -183,7 +184,15 @@ public class Bootstrap extends AbstractBootstrap<Bootstrap, Channel> {
 
         final Map<ChannelOption<?>, Object> options = options();
         synchronized (options) {
-            setChannelOptions(channel, options, logger);
+            for (Entry<ChannelOption<?>, Object> e: options.entrySet()) {
+                try {
+                    if (!channel.config().setOption((ChannelOption<Object>) e.getKey(), e.getValue())) {
+                        logger.warn("Unknown channel option: " + e);
+                    }
+                } catch (Throwable t) {
+                    logger.warn("Failed to set a channel option: " + channel, t);
+                }
+            }
         }
 
         final Map<AttributeKey<?>, Object> attrs = attrs();

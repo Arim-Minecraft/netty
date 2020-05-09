@@ -146,11 +146,6 @@ final class ScheduledFutureTask<V> extends PromiseTask<V> implements ScheduledFu
         }
     }
 
-    /**
-     * {@inheritDoc}
-     *
-     * @param mayInterruptIfRunning this value has no effect in this implementation.
-     */
     @Override
     public boolean cancel(boolean mayInterruptIfRunning) {
         boolean canceled = super.cancel(mayInterruptIfRunning);

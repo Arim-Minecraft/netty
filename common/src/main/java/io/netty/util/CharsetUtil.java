@@ -16,7 +16,6 @@
 package io.netty.util;
 
 import io.netty.util.internal.InternalThreadLocalMap;
-import static io.netty.util.internal.ObjectUtil.checkNotNull;
 
 import java.nio.charset.Charset;
 import java.nio.charset.CharsetDecoder;
@@ -63,113 +62,51 @@ public final class CharsetUtil {
     public static final Charset US_ASCII = Charset.forName("US-ASCII");
 
     /**
-     * @deprecated Use {@link #encoder(Charset)}.
+     * Returns a cached thread-local {@link CharsetEncoder} for the specified
+     * <tt>charset</tt>.
      */
-    @Deprecated
     public static CharsetEncoder getEncoder(Charset charset) {
-        return encoder(charset);
-    }
-
-    /**
-     * Returns a new {@link CharsetEncoder} for the {@link Charset} with specified error actions.
-     *
-     * @param charset The specified charset
-     * @param malformedInputAction The encoder's action for malformed-input errors
-     * @param unmappableCharacterAction The encoder's action for unmappable-character errors
-     * @return The encoder for the specified {@code charset}
-     */
-    public static CharsetEncoder encoder(Charset charset, CodingErrorAction malformedInputAction,
-                                         CodingErrorAction unmappableCharacterAction) {
-        checkNotNull(charset, "charset");
-        CharsetEncoder e = charset.newEncoder();
-        e.onMalformedInput(malformedInputAction).onUnmappableCharacter(unmappableCharacterAction);
-        return e;
-    }
-
-    /**
-     * Returns a new {@link CharsetEncoder} for the {@link Charset} with the specified error action.
-     *
-     * @param charset The specified charset
-     * @param codingErrorAction The encoder's action for malformed-input and unmappable-character errors
-     * @return The encoder for the specified {@code charset}
-     */
-    public static CharsetEncoder encoder(Charset charset, CodingErrorAction codingErrorAction) {
-        return encoder(charset, codingErrorAction, codingErrorAction);
-    }
-
-    /**
-     * Returns a cached thread-local {@link CharsetEncoder} for the specified {@link Charset}.
-     *
-     * @param charset The specified charset
-     * @return The encoder for the specified {@code charset}
-     */
-    public static CharsetEncoder encoder(Charset charset) {
-        checkNotNull(charset, "charset");
+        if (charset == null) {
+            throw new NullPointerException("charset");
+        }
 
         Map<Charset, CharsetEncoder> map = InternalThreadLocalMap.get().charsetEncoderCache();
         CharsetEncoder e = map.get(charset);
         if (e != null) {
-            e.reset().onMalformedInput(CodingErrorAction.REPLACE).onUnmappableCharacter(CodingErrorAction.REPLACE);
+            e.reset();
+            e.onMalformedInput(CodingErrorAction.REPLACE);
+            e.onUnmappableCharacter(CodingErrorAction.REPLACE);
             return e;
         }
 
-        e = encoder(charset, CodingErrorAction.REPLACE, CodingErrorAction.REPLACE);
+        e = charset.newEncoder();
+        e.onMalformedInput(CodingErrorAction.REPLACE);
+        e.onUnmappableCharacter(CodingErrorAction.REPLACE);
         map.put(charset, e);
         return e;
     }
 
     /**
-     * @deprecated Use {@link #decoder(Charset)}.
+     * Returns a cached thread-local {@link CharsetDecoder} for the specified
+     * <tt>charset</tt>.
      */
-    @Deprecated
     public static CharsetDecoder getDecoder(Charset charset) {
-        return decoder(charset);
-    }
-
-    /**
-     * Returns a new {@link CharsetDecoder} for the {@link Charset} with specified error actions.
-     *
-     * @param charset The specified charset
-     * @param malformedInputAction The decoder's action for malformed-input errors
-     * @param unmappableCharacterAction The decoder's action for unmappable-character errors
-     * @return The decoder for the specified {@code charset}
-     */
-    public static CharsetDecoder decoder(Charset charset, CodingErrorAction malformedInputAction,
-                                         CodingErrorAction unmappableCharacterAction) {
-        checkNotNull(charset, "charset");
-        CharsetDecoder d = charset.newDecoder();
-        d.onMalformedInput(malformedInputAction).onUnmappableCharacter(unmappableCharacterAction);
-        return d;
-    }
-
-    /**
-     * Returns a new {@link CharsetDecoder} for the {@link Charset} with the specified error action.
-     *
-     * @param charset The specified charset
-     * @param codingErrorAction The decoder's action for malformed-input and unmappable-character errors
-     * @return The decoder for the specified {@code charset}
-     */
-    public static CharsetDecoder decoder(Charset charset, CodingErrorAction codingErrorAction) {
-        return decoder(charset, codingErrorAction, codingErrorAction);
-    }
-
-    /**
-     * Returns a cached thread-local {@link CharsetDecoder} for the specified {@link Charset}.
-     *
-     * @param charset The specified charset
-     * @return The decoder for the specified {@code charset}
-     */
-    public static CharsetDecoder decoder(Charset charset) {
-        checkNotNull(charset, "charset");
+        if (charset == null) {
+            throw new NullPointerException("charset");
+        }
 
         Map<Charset, CharsetDecoder> map = InternalThreadLocalMap.get().charsetDecoderCache();
         CharsetDecoder d = map.get(charset);
         if (d != null) {
-            d.reset().onMalformedInput(CodingErrorAction.REPLACE).onUnmappableCharacter(CodingErrorAction.REPLACE);
+            d.reset();
+            d.onMalformedInput(CodingErrorAction.REPLACE);
+            d.onUnmappableCharacter(CodingErrorAction.REPLACE);
             return d;
         }
 
-        d = decoder(charset, CodingErrorAction.REPLACE, CodingErrorAction.REPLACE);
+        d = charset.newDecoder();
+        d.onMalformedInput(CodingErrorAction.REPLACE);
+        d.onUnmappableCharacter(CodingErrorAction.REPLACE);
         map.put(charset, d);
         return d;
     }

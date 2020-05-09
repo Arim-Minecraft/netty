@@ -75,7 +75,6 @@ public final class EpollServerDomainSocketChannel extends AbstractEpollServerCha
         fd().bind(localAddress);
         fd().listen(config.getBacklog());
         local = (DomainSocketAddress) localAddress;
-        active = true;
     }
 
     @Override

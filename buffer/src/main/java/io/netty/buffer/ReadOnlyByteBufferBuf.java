@@ -80,9 +80,7 @@ class ReadOnlyByteBufferBuf extends AbstractReferenceCountedByteBuf {
 
     @Override
     protected int _getUnsignedMedium(int index) {
-        return (getByte(index) & 0xff)     << 16 |
-               (getByte(index + 1) & 0xff) << 8  |
-               getByte(index + 2) & 0xff;
+        return (getByte(index) & 0xff) << 16 | (getByte(index + 1) & 0xff) << 8 | getByte(index + 2) & 0xff;
     }
 
     @Override
@@ -154,17 +152,7 @@ class ReadOnlyByteBufferBuf extends AbstractReferenceCountedByteBuf {
     }
 
     @Override
-    public ByteBuf setByte(int index, int value) {
-        throw new ReadOnlyBufferException();
-    }
-
-    @Override
     protected void _setByte(int index, int value) {
-        throw new ReadOnlyBufferException();
-    }
-
-    @Override
-    public ByteBuf setShort(int index, int value) {
         throw new ReadOnlyBufferException();
     }
 
@@ -174,27 +162,12 @@ class ReadOnlyByteBufferBuf extends AbstractReferenceCountedByteBuf {
     }
 
     @Override
-    public ByteBuf setMedium(int index, int value) {
-        throw new ReadOnlyBufferException();
-    }
-
-    @Override
     protected void _setMedium(int index, int value) {
         throw new ReadOnlyBufferException();
     }
 
     @Override
-    public ByteBuf setInt(int index, int value) {
-        throw new ReadOnlyBufferException();
-    }
-
-    @Override
     protected void _setInt(int index, int value) {
-        throw new ReadOnlyBufferException();
-    }
-
-    @Override
-    public ByteBuf setLong(int index, long value) {
         throw new ReadOnlyBufferException();
     }
 
@@ -307,9 +280,11 @@ class ReadOnlyByteBufferBuf extends AbstractReferenceCountedByteBuf {
             throw new IndexOutOfBoundsException("Too many bytes to read - Need " + (index + length));
         }
 
-        ByteBuf dst = src.isDirect() ? alloc().directBuffer(length) : alloc().heapBuffer(length);
-        dst.writeBytes(src);
-        return dst;
+        ByteBuffer dst = ByteBuffer.allocateDirect(length);
+        dst.put(src);
+        dst.order(order());
+        dst.clear();
+        return new UnpooledDirectByteBuf(alloc(), dst, maxCapacity());
     }
 
     @Override

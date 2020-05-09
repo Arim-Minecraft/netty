@@ -42,13 +42,13 @@ final class FixedCompositeByteBuf extends AbstractReferenceCountedByteBuf {
     private final boolean direct;
 
     FixedCompositeByteBuf(ByteBufAllocator allocator, ByteBuf... buffers) {
-        super(AbstractByteBufAllocator.DEFAULT_MAX_CAPACITY);
+        super(Integer.MAX_VALUE);
         if (buffers.length == 0) {
             this.buffers = EMPTY;
             order = ByteOrder.BIG_ENDIAN;
             nioBufferCount = 1;
             capacity = 0;
-            direct = false;
+            direct = buffers[0].isDirect();
         } else {
             ByteBuf b = buffers[0];
             this.buffers = new Object[buffers.length];
@@ -220,7 +220,7 @@ final class FixedCompositeByteBuf extends AbstractReferenceCountedByteBuf {
             readable += b.readableBytes();
             if (index < readable) {
                 if (isBuffer) {
-                    // Create a new component and store it in the array so it not create a new object
+                    // Create a new component ad store ti in the array so it not create a new object
                     // on the next access.
                     comp = new Component(i, readable - b.readableBytes(), b);
                     buffers[i] = comp;

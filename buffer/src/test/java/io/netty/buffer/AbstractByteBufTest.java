@@ -17,8 +17,9 @@ package io.netty.buffer;
 
 import io.netty.util.CharsetUtil;
 import io.netty.util.IllegalReferenceCountException;
-import io.netty.util.internal.PlatformDependent;
+import io.netty.util.internal.ThreadLocalRandom;
 import org.junit.After;
+import org.junit.Assume;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -26,16 +27,13 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 import java.nio.ReadOnlyBufferException;
 import java.nio.channels.Channels;
 import java.nio.channels.GatheringByteChannel;
 import java.nio.channels.ScatteringByteChannel;
 import java.nio.channels.WritableByteChannel;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
@@ -44,22 +42,11 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static io.netty.buffer.Unpooled.LITTLE_ENDIAN;
-import static io.netty.buffer.Unpooled.buffer;
-import static io.netty.buffer.Unpooled.copiedBuffer;
-import static io.netty.buffer.Unpooled.directBuffer;
-import static io.netty.buffer.Unpooled.wrappedBuffer;
-import static io.netty.util.internal.EmptyArrays.EMPTY_BYTES;
-import static org.hamcrest.CoreMatchers.is;
-import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertSame;
-import static org.junit.Assert.assertThat;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
-import static org.junit.Assume.assumeTrue;
+import static io.netty.buffer.Unpooled.*;
+import static io.netty.util.ReferenceCountUtil.*;
+import static io.netty.util.internal.EmptyArrays.*;
+import static org.hamcrest.CoreMatchers.*;
+import static org.junit.Assert.*;
 
 /**
  * An abstract test class for channel buffers
@@ -68,17 +55,12 @@ public abstract class AbstractByteBufTest {
 
     private static final int CAPACITY = 4096; // Must be even
     private static final int BLOCK_SIZE = 128;
-    private static final int JAVA_BYTEBUFFER_CONSISTENCY_ITERATIONS = 100;
 
     private long seed;
     private Random random;
     private ByteBuf buffer;
 
-    protected final ByteBuf newBuffer(int capacity) {
-        return newBuffer(capacity, Integer.MAX_VALUE);
-    }
-
-    protected abstract ByteBuf newBuffer(int capacity, int maxCapacity);
+    protected abstract ByteBuf newBuffer(int capacity);
 
     protected boolean discardReadBytesDoesNotMoveWritableBytes() {
         return true;
@@ -104,22 +86,6 @@ public abstract class AbstractByteBufTest {
             }
             buffer = null;
         }
-    }
-
-    @Test
-    public void comparableInterfaceNotViolated() {
-        buffer.writerIndex(buffer.readerIndex());
-        assumeTrue(buffer.writableBytes() >= 4);
-
-        buffer.writeLong(0);
-        ByteBuf buffer2 = newBuffer(CAPACITY);
-        buffer2.writerIndex(buffer2.readerIndex());
-        // Write an unsigned integer that will cause buffer.getUnsignedInt() - buffer2.getUnsignedInt() to underflow the
-        // int type and wrap around on the negative side.
-        buffer2.writeLong(0xF0000000L);
-        assertTrue(buffer.compareTo(buffer2) < 0);
-        assertTrue(buffer2.compareTo(buffer) > 0);
-        buffer2.release();
     }
 
     @Test
@@ -440,38 +406,6 @@ public abstract class AbstractByteBufTest {
     }
 
     @Test
-    public void testShortConsistentWithByteBuffer() {
-        testShortConsistentWithByteBuffer(true, true);
-        testShortConsistentWithByteBuffer(true, false);
-        testShortConsistentWithByteBuffer(false, true);
-        testShortConsistentWithByteBuffer(false, false);
-    }
-
-    private void testShortConsistentWithByteBuffer(boolean direct, boolean testBigEndian) {
-        for (int i = 0; i < JAVA_BYTEBUFFER_CONSISTENCY_ITERATIONS; ++i) {
-            ByteBuffer javaBuffer = direct ? ByteBuffer.allocateDirect(buffer.capacity())
-                                           : ByteBuffer.allocate(buffer.capacity());
-            if (!testBigEndian) {
-                javaBuffer = javaBuffer.order(ByteOrder.LITTLE_ENDIAN);
-            }
-
-            short expected = (short) (random.nextInt() & 0xFFFF);
-            javaBuffer.putShort(expected);
-
-            final int bufferIndex = buffer.capacity() - 2;
-            if (!testBigEndian) {
-                buffer = buffer.order(ByteOrder.LITTLE_ENDIAN);
-            }
-            buffer.setShort(bufferIndex, expected);
-            javaBuffer.flip();
-
-            short javaActual = javaBuffer.getShort();
-            assertEquals(expected, javaActual);
-            assertEquals(javaActual, buffer.getShort(bufferIndex));
-        }
-    }
-
-    @Test
     public void testRandomUnsignedShortAccess() {
         for (int i = 0; i < buffer.capacity() - 1; i += 2) {
             short value = (short) random.nextInt();
@@ -514,38 +448,6 @@ public abstract class AbstractByteBufTest {
     }
 
     @Test
-    public void testMediumConsistentWithByteBuffer() {
-        testMediumConsistentWithByteBuffer(true, true);
-        testMediumConsistentWithByteBuffer(true, false);
-        testMediumConsistentWithByteBuffer(false, true);
-        testMediumConsistentWithByteBuffer(false, false);
-    }
-
-    private void testMediumConsistentWithByteBuffer(boolean direct, boolean testBigEndian) {
-        for (int i = 0; i < JAVA_BYTEBUFFER_CONSISTENCY_ITERATIONS; ++i) {
-            ByteBuffer javaBuffer = direct ? ByteBuffer.allocateDirect(buffer.capacity())
-                                           : ByteBuffer.allocate(buffer.capacity());
-            if (!testBigEndian) {
-                javaBuffer = javaBuffer.order(ByteOrder.LITTLE_ENDIAN);
-            }
-
-            int expected = random.nextInt() & 0x00FFFFFF;
-            javaBuffer.putInt(expected);
-
-            final int bufferIndex = buffer.capacity() - 3;
-            if (testBigEndian) {
-                buffer = buffer.order(ByteOrder.LITTLE_ENDIAN);
-            }
-            buffer.setMedium(bufferIndex, expected);
-            javaBuffer.flip();
-
-            int javaActual = javaBuffer.getInt();
-            assertEquals(expected, javaActual);
-            assertEquals(javaActual, buffer.getUnsignedMedium(bufferIndex));
-        }
-    }
-
-    @Test
     public void testRandomIntAccess() {
         for (int i = 0; i < buffer.capacity() - 3; i += 4) {
             int value = random.nextInt();
@@ -556,38 +458,6 @@ public abstract class AbstractByteBufTest {
         for (int i = 0; i < buffer.capacity() - 3; i += 4) {
             int value = random.nextInt();
             assertEquals(value, buffer.getInt(i));
-        }
-    }
-
-    @Test
-    public void testIntConsistentWithByteBuffer() {
-        testIntConsistentWithByteBuffer(true, true);
-        testIntConsistentWithByteBuffer(true, false);
-        testIntConsistentWithByteBuffer(false, true);
-        testIntConsistentWithByteBuffer(false, false);
-    }
-
-    private void testIntConsistentWithByteBuffer(boolean direct, boolean testBigEndian) {
-        for (int i = 0; i < JAVA_BYTEBUFFER_CONSISTENCY_ITERATIONS; ++i) {
-            ByteBuffer javaBuffer = direct ? ByteBuffer.allocateDirect(buffer.capacity())
-                                           : ByteBuffer.allocate(buffer.capacity());
-            if (!testBigEndian) {
-                javaBuffer = javaBuffer.order(ByteOrder.LITTLE_ENDIAN);
-            }
-
-            int expected = random.nextInt();
-            javaBuffer.putInt(expected);
-
-            final int bufferIndex = buffer.capacity() - 4;
-            if (testBigEndian) {
-                buffer = buffer.order(ByteOrder.LITTLE_ENDIAN);
-            }
-            buffer.setInt(bufferIndex, expected);
-            javaBuffer.flip();
-
-            int javaActual = javaBuffer.getInt();
-            assertEquals(expected, javaActual);
-            assertEquals(javaActual, buffer.getInt(bufferIndex));
         }
     }
 
@@ -1002,7 +872,7 @@ public abstract class AbstractByteBufTest {
     @Test
     public void testRandomDirectBufferTransfer() {
         byte[] tmp = new byte[BLOCK_SIZE * 2];
-        ByteBuf value = directBuffer(BLOCK_SIZE * 2);
+        ByteBuf value = releaseLater(directBuffer(BLOCK_SIZE * 2));
         for (int i = 0; i < buffer.capacity() - BLOCK_SIZE + 1; i += BLOCK_SIZE) {
             random.nextBytes(tmp);
             value.setBytes(0, tmp, 0, value.capacity());
@@ -1010,7 +880,7 @@ public abstract class AbstractByteBufTest {
         }
 
         random.setSeed(seed);
-        ByteBuf expectedValue = directBuffer(BLOCK_SIZE * 2);
+        ByteBuf expectedValue = releaseLater(directBuffer(BLOCK_SIZE * 2));
         for (int i = 0; i < buffer.capacity() - BLOCK_SIZE + 1; i += BLOCK_SIZE) {
             random.nextBytes(tmp);
             expectedValue.setBytes(0, tmp, 0, expectedValue.capacity());
@@ -1020,8 +890,6 @@ public abstract class AbstractByteBufTest {
                 assertEquals(expectedValue.getByte(j), value.getByte(j));
             }
         }
-        value.release();
-        expectedValue.release();
     }
 
     @Test
@@ -1168,7 +1036,7 @@ public abstract class AbstractByteBufTest {
     @Test
     public void testSequentialDirectBufferTransfer1() {
         byte[] valueContent = new byte[BLOCK_SIZE * 2];
-        ByteBuf value = directBuffer(BLOCK_SIZE * 2);
+        ByteBuf value = releaseLater(directBuffer(BLOCK_SIZE * 2));
         buffer.writerIndex(0);
         for (int i = 0; i < buffer.capacity() - BLOCK_SIZE + 1; i += BLOCK_SIZE) {
             random.nextBytes(valueContent);
@@ -1182,7 +1050,7 @@ public abstract class AbstractByteBufTest {
 
         random.setSeed(seed);
         byte[] expectedValueContent = new byte[BLOCK_SIZE * 2];
-        ByteBuf expectedValue = wrappedBuffer(expectedValueContent);
+        ByteBuf expectedValue = releaseLater(wrappedBuffer(expectedValueContent));
         for (int i = 0; i < buffer.capacity() - BLOCK_SIZE + 1; i += BLOCK_SIZE) {
             random.nextBytes(expectedValueContent);
             int valueOffset = random.nextInt(BLOCK_SIZE);
@@ -1196,14 +1064,12 @@ public abstract class AbstractByteBufTest {
             assertEquals(0, value.readerIndex());
             assertEquals(0, value.writerIndex());
         }
-        value.release();
-        expectedValue.release();
     }
 
     @Test
     public void testSequentialDirectBufferTransfer2() {
         byte[] valueContent = new byte[BLOCK_SIZE * 2];
-        ByteBuf value = directBuffer(BLOCK_SIZE * 2);
+        ByteBuf value = releaseLater(directBuffer(BLOCK_SIZE * 2));
         buffer.writerIndex(0);
         for (int i = 0; i < buffer.capacity() - BLOCK_SIZE + 1; i += BLOCK_SIZE) {
             random.nextBytes(valueContent);
@@ -1221,7 +1087,7 @@ public abstract class AbstractByteBufTest {
 
         random.setSeed(seed);
         byte[] expectedValueContent = new byte[BLOCK_SIZE * 2];
-        ByteBuf expectedValue = wrappedBuffer(expectedValueContent);
+        ByteBuf expectedValue = releaseLater(wrappedBuffer(expectedValueContent));
         for (int i = 0; i < buffer.capacity() - BLOCK_SIZE + 1; i += BLOCK_SIZE) {
             random.nextBytes(expectedValueContent);
             value.setBytes(0, valueContent);
@@ -1237,8 +1103,6 @@ public abstract class AbstractByteBufTest {
             assertEquals(valueOffset, value.readerIndex());
             assertEquals(valueOffset + BLOCK_SIZE, value.writerIndex());
         }
-        value.release();
-        expectedValue.release();
     }
 
     @Test
@@ -1363,7 +1227,6 @@ public abstract class AbstractByteBufTest {
             // Make sure if it is a copied buffer.
             actualValue.setByte(0, (byte) (actualValue.getByte(0) + 1));
             assertFalse(buffer.getByte(i) == actualValue.getByte(0));
-            actualValue.release();
         }
     }
 
@@ -1429,7 +1292,7 @@ public abstract class AbstractByteBufTest {
         for (int i = 0; i < buffer.capacity(); i += 4) {
             buffer.writeInt(i);
         }
-        ByteBuf copy = copiedBuffer(buffer);
+        ByteBuf copy = releaseLater(copiedBuffer(buffer));
 
         // Make sure there's no effect if called when readerIndex is 0.
         buffer.readerIndex(CAPACITY / 4);
@@ -1469,7 +1332,6 @@ public abstract class AbstractByteBufTest {
         assertEquals(CAPACITY / 4 - 1, buffer.readerIndex());
         buffer.resetWriterIndex();
         assertEquals(CAPACITY / 3 - 1, buffer.writerIndex());
-        copy.release();
     }
 
     /**
@@ -1482,7 +1344,7 @@ public abstract class AbstractByteBufTest {
         for (int i = 0; i < buffer.capacity(); i ++) {
             buffer.writeByte((byte) i);
         }
-        ByteBuf copy = copiedBuffer(buffer);
+        ByteBuf copy = releaseLater(copiedBuffer(buffer));
 
         // Discard the first (CAPACITY / 2 - 1) bytes.
         buffer.setIndex(CAPACITY / 2 - 1, CAPACITY - 1);
@@ -1492,7 +1354,6 @@ public abstract class AbstractByteBufTest {
         for (int i = 0; i < CAPACITY / 2; i ++) {
             assertEquals(copy.slice(CAPACITY / 2 - 1 + i, CAPACITY / 2 - i), buffer.slice(i, CAPACITY / 2 - i));
         }
-        copy.release();
     }
 
     @Test
@@ -1549,7 +1410,7 @@ public abstract class AbstractByteBufTest {
         buffer.setIndex(readerIndex, writerIndex);
 
         // Make sure all properties are copied.
-        ByteBuf copy = buffer.copy();
+        ByteBuf copy = releaseLater(buffer.copy());
         assertEquals(0, copy.readerIndex());
         assertEquals(buffer.readableBytes(), copy.writerIndex());
         assertEquals(buffer.readableBytes(), copy.capacity());
@@ -1563,7 +1424,6 @@ public abstract class AbstractByteBufTest {
         assertTrue(buffer.getByte(readerIndex) != copy.getByte(0));
         copy.setByte(1, (byte) (copy.getByte(1) + 1));
         assertTrue(buffer.getByte(readerIndex + 1) != copy.getByte(1));
-        copy.release();
     }
 
     @Test
@@ -1579,15 +1439,19 @@ public abstract class AbstractByteBufTest {
 
         // Make sure all properties are copied.
         ByteBuf duplicate = buffer.duplicate();
+        assertEquals(buffer.readerIndex(), duplicate.readerIndex());
+        assertEquals(buffer.writerIndex(), duplicate.writerIndex());
+        assertEquals(buffer.capacity(), duplicate.capacity());
         assertSame(buffer.order(), duplicate.order());
-        assertEquals(buffer.readableBytes(), duplicate.readableBytes());
-        assertEquals(0, buffer.compareTo(duplicate));
+        for (int i = 0; i < duplicate.capacity(); i ++) {
+            assertEquals(buffer.getByte(i), duplicate.getByte(i));
+        }
 
         // Make sure the buffer content is shared.
         buffer.setByte(readerIndex, (byte) (buffer.getByte(readerIndex) + 1));
-        assertEquals(buffer.getByte(readerIndex), duplicate.getByte(duplicate.readerIndex()));
-        duplicate.setByte(duplicate.readerIndex(), (byte) (duplicate.getByte(duplicate.readerIndex()) + 1));
-        assertEquals(buffer.getByte(readerIndex), duplicate.getByte(duplicate.readerIndex()));
+        assertEquals(buffer.getByte(readerIndex), duplicate.getByte(readerIndex));
+        duplicate.setByte(1, (byte) (duplicate.getByte(1) + 1));
+        assertEquals(buffer.getByte(1), duplicate.getByte(1));
     }
 
     @Test
@@ -1644,9 +1508,9 @@ public abstract class AbstractByteBufTest {
         random.nextBytes(value);
         // Prevent overflow / underflow
         if (value[0] == 0) {
-            value[0]++;
+            value[0] ++;
         } else if (value[0] == -1) {
-            value[0]--;
+            value[0] --;
         }
 
         buffer.setIndex(0, value.length);
@@ -1655,13 +1519,13 @@ public abstract class AbstractByteBufTest {
         assertEquals(0, buffer.compareTo(wrappedBuffer(value)));
         assertEquals(0, buffer.compareTo(wrappedBuffer(value).order(LITTLE_ENDIAN)));
 
-        value[0]++;
+        value[0] ++;
         assertTrue(buffer.compareTo(wrappedBuffer(value)) < 0);
         assertTrue(buffer.compareTo(wrappedBuffer(value).order(LITTLE_ENDIAN)) < 0);
         value[0] -= 2;
         assertTrue(buffer.compareTo(wrappedBuffer(value)) > 0);
         assertTrue(buffer.compareTo(wrappedBuffer(value).order(LITTLE_ENDIAN)) > 0);
-        value[0]++;
+        value[0] ++;
 
         assertTrue(buffer.compareTo(wrappedBuffer(value, 0, 31)) > 0);
         assertTrue(buffer.compareTo(wrappedBuffer(value, 0, 31).order(LITTLE_ENDIAN)) > 0);
@@ -1670,71 +1534,10 @@ public abstract class AbstractByteBufTest {
     }
 
     @Test
-    public void testCompareTo2() {
-        byte[] bytes = {1, 2, 3, 4};
-        byte[] bytesReversed = {4, 3, 2, 1};
-
-        ByteBuf buf1 = newBuffer(4).clear().writeBytes(bytes).order(ByteOrder.LITTLE_ENDIAN);
-        ByteBuf buf2 = newBuffer(4).clear().writeBytes(bytesReversed).order(ByteOrder.LITTLE_ENDIAN);
-        ByteBuf buf3 = newBuffer(4).clear().writeBytes(bytes).order(ByteOrder.BIG_ENDIAN);
-        ByteBuf buf4 = newBuffer(4).clear().writeBytes(bytesReversed).order(ByteOrder.BIG_ENDIAN);
-        try {
-            assertEquals(buf1.compareTo(buf2), buf3.compareTo(buf4));
-            assertEquals(buf2.compareTo(buf1), buf4.compareTo(buf3));
-            assertEquals(buf1.compareTo(buf3), buf2.compareTo(buf4));
-            assertEquals(buf3.compareTo(buf1), buf4.compareTo(buf2));
-        } finally {
-            buf1.release();
-            buf2.release();
-            buf3.release();
-            buf4.release();
-        }
-    }
-
-    @Test
     public void testToString() {
-        ByteBuf copied = copiedBuffer("Hello, World!", CharsetUtil.ISO_8859_1);
         buffer.clear();
-        buffer.writeBytes(copied);
+        buffer.writeBytes(releaseLater(copiedBuffer("Hello, World!", CharsetUtil.ISO_8859_1)));
         assertEquals("Hello, World!", buffer.toString(CharsetUtil.ISO_8859_1));
-        copied.release();
-    }
-
-    @Test(timeout = 10000)
-    public void testToStringMultipleThreads() throws Throwable {
-        buffer.clear();
-        buffer.writeBytes("Hello, World!".getBytes(CharsetUtil.ISO_8859_1));
-
-        final AtomicInteger counter = new AtomicInteger(30000);
-        final AtomicReference<Throwable> errorRef = new AtomicReference<Throwable>();
-        List<Thread> threads = new ArrayList<Thread>();
-        for (int i = 0; i < 10; i++) {
-            Thread thread = new Thread(new Runnable() {
-                @Override
-                public void run() {
-                    try {
-                        while (errorRef.get() == null && counter.decrementAndGet() > 0) {
-                            assertEquals("Hello, World!", buffer.toString(CharsetUtil.ISO_8859_1));
-                        }
-                    } catch (Throwable cause) {
-                        errorRef.compareAndSet(null, cause);
-                    }
-                }
-            });
-            threads.add(thread);
-        }
-        for (Thread thread : threads) {
-            thread.start();
-        }
-
-        for (Thread thread : threads) {
-            thread.join();
-        }
-
-        Throwable error = errorRef.get();
-        if (error != null) {
-            throw error;
-        }
     }
 
     @Test
@@ -1754,7 +1557,7 @@ public abstract class AbstractByteBufTest {
 
     @Test
     public void testNioBuffer1() {
-        assumeTrue(buffer.nioBufferCount() == 1);
+        Assume.assumeTrue(buffer.nioBufferCount() == 1);
 
         byte[] value = new byte[buffer.capacity()];
         random.nextBytes(value);
@@ -1766,7 +1569,7 @@ public abstract class AbstractByteBufTest {
 
     @Test
     public void testToByteBuffer2() {
-        assumeTrue(buffer.nioBufferCount() == 1);
+        Assume.assumeTrue(buffer.nioBufferCount() == 1);
 
         byte[] value = new byte[buffer.capacity()];
         random.nextBytes(value);
@@ -1792,7 +1595,7 @@ public abstract class AbstractByteBufTest {
 
     @Test
     public void testToByteBuffer3() {
-        assumeTrue(buffer.nioBufferCount() == 1);
+        Assume.assumeTrue(buffer.nioBufferCount() == 1);
 
         assertEquals(buffer.order(), buffer.nioBuffer().order());
     }
@@ -1817,8 +1620,8 @@ public abstract class AbstractByteBufTest {
 
     @Test
     public void testHashCode() {
-        ByteBuf elemA = buffer(15);
-        ByteBuf elemB = directBuffer(15);
+        ByteBuf elemA = releaseLater(buffer(15));
+        ByteBuf elemB = releaseLater(directBuffer(15));
         elemA.writeBytes(new byte[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5 });
         elemB.writeBytes(new byte[] { 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 9 });
 
@@ -1827,10 +1630,9 @@ public abstract class AbstractByteBufTest {
         set.add(elemB);
 
         assertEquals(2, set.size());
-        ByteBuf elemACopy = elemA.copy();
-        assertTrue(set.contains(elemACopy));
+        assertTrue(set.contains(releaseLater(elemA.copy())));
 
-        ByteBuf elemBCopy = elemB.copy();
+        ByteBuf elemBCopy = releaseLater(elemB.copy());
         assertTrue(set.contains(elemBCopy));
 
         buffer.clear();
@@ -1845,10 +1647,6 @@ public abstract class AbstractByteBufTest {
         assertTrue(set.remove(buffer));
         assertFalse(set.contains(elemB));
         assertEquals(0, set.size());
-        elemA.release();
-        elemB.release();
-        elemACopy.release();
-        elemBCopy.release();
     }
 
     // Test case for https://github.com/netty/netty/issues/325
@@ -1941,22 +1739,21 @@ public abstract class AbstractByteBufTest {
     }
 
     private void testInternalNioBuffer(int a) {
-        ByteBuf buffer = newBuffer(2);
-        ByteBuffer buf = buffer.internalNioBuffer(buffer.readerIndex(), 1);
+        ByteBuf buffer = releaseLater(newBuffer(2));
+        ByteBuffer buf = buffer.internalNioBuffer(0, 1);
         assertEquals(1, buf.remaining());
 
         byte[] data = new byte[a];
-        PlatformDependent.threadLocalRandom().nextBytes(data);
+        ThreadLocalRandom.current().nextBytes(data);
         buffer.writeBytes(data);
 
-        buf = buffer.internalNioBuffer(buffer.readerIndex(), a);
+        buf = buffer.internalNioBuffer(0, a);
         assertEquals(a, buf.remaining());
 
         for (int i = 0; i < a; i++) {
             assertEquals(data[i], buf.get());
         }
         assertFalse(buf.hasRemaining());
-        buffer.release();
     }
 
     @Test
@@ -1973,7 +1770,7 @@ public abstract class AbstractByteBufTest {
         final byte[] bytes = new byte[8];
         random.nextBytes(bytes);
 
-        final ByteBuf buffer = newBuffer(8);
+        final ByteBuf buffer = releaseLater(newBuffer(8));
         buffer.writeBytes(bytes);
         final CountDownLatch latch = new CountDownLatch(60000);
         final CyclicBarrier barrier = new CyclicBarrier(11);
@@ -2011,7 +1808,6 @@ public abstract class AbstractByteBufTest {
         }
         latch.await(10, TimeUnit.SECONDS);
         barrier.await(5, TimeUnit.SECONDS);
-        buffer.release();
     }
 
     @Test
@@ -2028,7 +1824,7 @@ public abstract class AbstractByteBufTest {
         final byte[] bytes = new byte[8];
         random.nextBytes(bytes);
 
-        final ByteBuf buffer = newBuffer(8);
+        final ByteBuf buffer = releaseLater(newBuffer(8));
         buffer.writeBytes(bytes);
         final CountDownLatch latch = new CountDownLatch(60000);
         final CyclicBarrier barrier = new CyclicBarrier(11);
@@ -2066,7 +1862,6 @@ public abstract class AbstractByteBufTest {
         }
         latch.await(10, TimeUnit.SECONDS);
         barrier.await(5, TimeUnit.SECONDS);
-        buffer.release();
     }
 
     @Test
@@ -2083,7 +1878,7 @@ public abstract class AbstractByteBufTest {
         final byte[] bytes = new byte[8];
         random.nextBytes(bytes);
 
-        final ByteBuf buffer = newBuffer(8);
+        final ByteBuf buffer = releaseLater(newBuffer(8));
         buffer.writeBytes(bytes);
         final AtomicReference<Throwable> cause = new AtomicReference<Throwable>();
         final CountDownLatch latch = new CountDownLatch(60000);
@@ -2122,25 +1917,20 @@ public abstract class AbstractByteBufTest {
         latch.await(10, TimeUnit.SECONDS);
         barrier.await(5, TimeUnit.SECONDS);
         assertNull(cause.get());
-        buffer.release();
     }
 
     @Test(expected = IndexOutOfBoundsException.class)
     public void readByteThrowsIndexOutOfBoundsException() {
-        final ByteBuf buffer = newBuffer(8);
-        try {
-            buffer.writeByte(0);
-            assertEquals((byte) 0, buffer.readByte());
-            buffer.readByte();
-        } finally {
-            buffer.release();
-        }
+        final ByteBuf buffer = releaseLater(newBuffer(8));
+        buffer.writeByte(0);
+        assertEquals((byte) 0, buffer.readByte());
+        buffer.readByte();
     }
 
     @Test
     @SuppressWarnings("ForLoopThatDoesntUseLoopVariable")
     public void testNioBufferExposeOnlyRegion() {
-        final ByteBuf buffer = newBuffer(8);
+        final ByteBuf buffer = releaseLater(newBuffer(8));
         byte[] data = new byte[8];
         random.nextBytes(data);
         buffer.writeBytes(data);
@@ -2152,24 +1942,6 @@ public abstract class AbstractByteBufTest {
         for (int i = 1; nioBuf.hasRemaining(); i++) {
             assertEquals(data[i], nioBuf.get());
         }
-        buffer.release();
-    }
-
-    @Test
-    public void ensureWritableWithForceDoesNotThrow() {
-        ensureWritableDoesNotThrow(true);
-    }
-
-    @Test
-    public void ensureWritableWithOutForceDoesNotThrow() {
-        ensureWritableDoesNotThrow(false);
-    }
-
-    private void ensureWritableDoesNotThrow(boolean force) {
-        final ByteBuf buffer = newBuffer(8);
-        buffer.writerIndex(buffer.capacity());
-        buffer.ensureWritable(8, force);
-        buffer.release();
     }
 
     // See:
@@ -2177,18 +1949,13 @@ public abstract class AbstractByteBufTest {
     // - https://github.com/netty/netty/issues/2580
     @Test
     public void testLittleEndianWithExpand() {
-        ByteBuf buffer = newBuffer(0).order(LITTLE_ENDIAN);
+        ByteBuf buffer = releaseLater(newBuffer(0)).order(LITTLE_ENDIAN);
         buffer.writeInt(0x12345678);
         assertEquals("78563412", ByteBufUtil.hexDump(buffer));
-        buffer.release();
     }
 
     private ByteBuf releasedBuffer() {
         ByteBuf buffer = newBuffer(8);
-        // Clear the buffer so we are sure the reader and writer indices are 0.
-        // This is important as we may return a slice from newBuffer(...).
-        buffer.clear();
-
         assertTrue(buffer.release());
         return buffer;
     }
@@ -2275,32 +2042,17 @@ public abstract class AbstractByteBufTest {
 
     @Test(expected = IllegalReferenceCountException.class)
     public void testGetBytesAfterRelease() {
-        ByteBuf buffer = buffer(8);
-        try {
-            releasedBuffer().getBytes(0, buffer);
-        } finally {
-            buffer.release();
-        }
+        releasedBuffer().getBytes(0, releaseLater(buffer(8)));
     }
 
     @Test(expected = IllegalReferenceCountException.class)
     public void testGetBytesAfterRelease2() {
-        ByteBuf buffer = buffer();
-        try {
-            releasedBuffer().getBytes(0, buffer, 1);
-        } finally {
-            buffer.release();
-        }
+        releasedBuffer().getBytes(0, releaseLater(buffer()), 1);
     }
 
     @Test(expected = IllegalReferenceCountException.class)
     public void testGetBytesAfterRelease3() {
-        ByteBuf buffer = buffer();
-        try {
-            releasedBuffer().getBytes(0, buffer, 0, 1);
-        } finally {
-            buffer.release();
-        }
+        releasedBuffer().getBytes(0, releaseLater(buffer()), 0, 1);
     }
 
     @Test(expected = IllegalReferenceCountException.class)
@@ -2375,32 +2127,17 @@ public abstract class AbstractByteBufTest {
 
     @Test(expected = IllegalReferenceCountException.class)
     public void testSetBytesAfterRelease() {
-        ByteBuf buffer = buffer();
-        try {
-            releasedBuffer().setBytes(0, buffer);
-        } finally {
-            buffer.release();
-        }
+        releasedBuffer().setBytes(0, releaseLater(buffer()));
     }
 
     @Test(expected = IllegalReferenceCountException.class)
     public void testSetBytesAfterRelease2() {
-        ByteBuf buffer = buffer();
-        try {
-            releasedBuffer().setBytes(0, buffer, 1);
-        } finally {
-            buffer.release();
-        }
+        releasedBuffer().setBytes(0, releaseLater(buffer()), 1);
     }
 
     @Test(expected = IllegalReferenceCountException.class)
     public void testSetBytesAfterRelease3() {
-        ByteBuf buffer = buffer();
-        try {
-            releasedBuffer().setBytes(0, buffer, 0, 1);
-        } finally {
-            buffer.release();
-        }
+        releasedBuffer().setBytes(0, releaseLater(buffer()), 0, 1);
     }
 
     @Test(expected = IllegalReferenceCountException.class)
@@ -2505,32 +2242,17 @@ public abstract class AbstractByteBufTest {
 
     @Test(expected = IllegalReferenceCountException.class)
     public void testReadBytesAfterRelease2() {
-        ByteBuf buffer = buffer(8);
-        try {
-            releasedBuffer().readBytes(buffer);
-        } finally {
-            buffer.release();
-        }
+        releasedBuffer().readBytes(releaseLater(buffer(8)));
     }
 
     @Test(expected = IllegalReferenceCountException.class)
     public void testReadBytesAfterRelease3() {
-        ByteBuf buffer = buffer(8);
-        try {
-            releasedBuffer().readBytes(buffer);
-        } finally {
-            buffer.release();
-        }
+        releasedBuffer().readBytes(releaseLater(buffer(8), 1));
     }
 
     @Test(expected = IllegalReferenceCountException.class)
     public void testReadBytesAfterRelease4() {
-        ByteBuf buffer = buffer(8);
-        try {
-            releasedBuffer().readBytes(buffer, 0, 1);
-        } finally {
-            buffer.release();
-        }
+        releasedBuffer().readBytes(releaseLater(buffer(8)), 0, 1);
     }
 
     @Test(expected = IllegalReferenceCountException.class)
@@ -2610,32 +2332,17 @@ public abstract class AbstractByteBufTest {
 
     @Test(expected = IllegalReferenceCountException.class)
     public void testWriteBytesAfterRelease() {
-        ByteBuf buffer = buffer(8);
-        try {
-            releasedBuffer().writeBytes(buffer);
-        } finally {
-            buffer.release();
-        }
+        releasedBuffer().writeBytes(releaseLater(buffer(8)));
     }
 
     @Test(expected = IllegalReferenceCountException.class)
     public void testWriteBytesAfterRelease2() {
-        ByteBuf buffer = copiedBuffer(new byte[8]);
-        try {
-            releasedBuffer().writeBytes(buffer, 1);
-        } finally {
-            buffer.release();
-        }
+        releasedBuffer().writeBytes(releaseLater(copiedBuffer(new byte[8])), 1);
     }
 
     @Test(expected = IllegalReferenceCountException.class)
     public void testWriteBytesAfterRelease3() {
-        ByteBuf buffer = buffer(8);
-        try {
-            releasedBuffer().writeBytes(buffer, 0, 1);
-        } finally {
-            buffer.release();
-        }
+        releasedBuffer().writeBytes(releaseLater(buffer(8)), 0, 1);
     }
 
     @Test(expected = IllegalReferenceCountException.class)
@@ -2710,8 +2417,7 @@ public abstract class AbstractByteBufTest {
 
     @Test(expected = IllegalReferenceCountException.class)
     public void testInternalNioBufferAfterRelease() {
-        ByteBuf releasedBuffer = releasedBuffer();
-        releasedBuffer.internalNioBuffer(releasedBuffer.readerIndex(), 1);
+        releasedBuffer().internalNioBuffer(0, 1);
     }
 
     @Test(expected = IllegalReferenceCountException.class)
@@ -2758,18 +2464,6 @@ public abstract class AbstractByteBufTest {
         assertEquals(0, buf.refCnt());
     }
 
-    @Test(expected = IndexOutOfBoundsException.class)
-    public void testReadSliceOutOfBounds() {
-        ByteBuf buf = newBuffer(100);
-        try {
-            buf.writeZero(50);
-            buf.readSlice(51);
-            fail();
-        } finally {
-            buf.release();
-        }
-    }
-
     @Test
     public void testDuplicateRelease() {
         ByteBuf buf = newBuffer(8);
@@ -2794,13 +2488,12 @@ public abstract class AbstractByteBufTest {
 
     @Test
     public void testEmptyNioBuffers() throws Exception {
-        ByteBuf buffer = newBuffer(8);
+        ByteBuf buffer = releaseLater(newBuffer(8));
         buffer.clear();
         assertFalse(buffer.isReadable());
         ByteBuffer[] nioBuffers = buffer.nioBuffers();
         assertEquals(1, nioBuffers.length);
         assertFalse(nioBuffers[0].hasRemaining());
-        buffer.release();
     }
 
     @Test
@@ -2816,7 +2509,7 @@ public abstract class AbstractByteBufTest {
     private void testGetReadOnlyDst(boolean direct) {
         byte[] bytes = { 'a', 'b', 'c', 'd' };
 
-        ByteBuf buffer = newBuffer(bytes.length);
+        ByteBuf buffer = releaseLater(newBuffer(bytes.length));
         buffer.writeBytes(bytes);
 
         ByteBuffer dst = direct ? ByteBuffer.allocateDirect(bytes.length) : ByteBuffer.allocate(bytes.length);
@@ -2828,82 +2521,6 @@ public abstract class AbstractByteBufTest {
             // expected
         }
         assertEquals(0, readOnlyDst.position());
-        buffer.release();
-    }
-
-    @Test
-    public void testReadBytes() {
-        ByteBuf buffer = newBuffer(8);
-        byte[] bytes = new byte[8];
-        buffer.writeBytes(bytes);
-
-        ByteBuf buffer2 = buffer.readBytes(4);
-        assertSame(buffer.alloc(), buffer2.alloc());
-        assertEquals(4, buffer.readerIndex());
-        assertTrue(buffer.release());
-        assertEquals(0, buffer.refCnt());
-        assertTrue(buffer2.release());
-        assertEquals(0, buffer2.refCnt());
-    }
-
-    @Test
-    public void testForEachByteDesc2() {
-        byte[] expected = {1, 2, 3, 4};
-        ByteBuf buf = newBuffer(expected.length);
-        try {
-            buf.writeBytes(expected);
-            final byte[] bytes = new byte[expected.length];
-            int i = buf.forEachByteDesc(new ByteBufProcessor() {
-                private int index = bytes.length - 1;
-
-                @Override
-                public boolean process(byte value) throws Exception {
-                    bytes[index--] = value;
-                    return true;
-                }
-            });
-            assertEquals(-1, i);
-            assertArrayEquals(expected, bytes);
-        } finally {
-            buf.release();
-        }
-    }
-
-    @Test
-    public void testForEachByte2() {
-        byte[] expected = {1, 2, 3, 4};
-        ByteBuf buf = newBuffer(expected.length);
-        try {
-            buf.writeBytes(expected);
-            final byte[] bytes = new byte[expected.length];
-            int i = buf.forEachByte(new ByteBufProcessor() {
-                private int index;
-
-                @Override
-                public boolean process(byte value) throws Exception {
-                    bytes[index++] = value;
-                    return true;
-                }
-            });
-            assertEquals(-1, i);
-            assertArrayEquals(expected, bytes);
-        } finally {
-            buf.release();
-        }
-    }
-
-    @Test(expected = IndexOutOfBoundsException.class)
-    public void testGetBytesByteBuffer() {
-        byte[] bytes = {'a', 'b', 'c', 'd', 'e', 'f', 'g'};
-        // Ensure destination buffer is bigger then what is in the ByteBuf.
-        ByteBuffer nioBuffer = ByteBuffer.allocate(bytes.length + 1);
-        ByteBuf buffer = newBuffer(bytes.length);
-        try {
-            buffer.writeBytes(bytes);
-            buffer.getBytes(buffer.readerIndex(), nioBuffer);
-        } finally {
-            buffer.release();
-        }
     }
 
     private void testRefCnt0(final boolean parameter) throws Exception {
@@ -3061,58 +2678,6 @@ public abstract class AbstractByteBufTest {
         @Override
         public boolean process(byte value) throws Exception {
             return true;
-        }
-    }
-
-    @Test(expected = IllegalArgumentException.class)
-    public void testCapacityEnforceMaxCapacity() {
-        ByteBuf buffer = newBuffer(3, 13);
-        assertEquals(13, buffer.maxCapacity());
-        assertEquals(3, buffer.capacity());
-        try {
-            buffer.capacity(14);
-        } finally {
-            buffer.release();
-        }
-    }
-
-    @Test(expected = IllegalArgumentException.class)
-    public void testCapacityNegative() {
-        ByteBuf buffer = newBuffer(3, 13);
-        assertEquals(13, buffer.maxCapacity());
-        assertEquals(3, buffer.capacity());
-        try {
-            buffer.capacity(-1);
-        } finally {
-            buffer.release();
-        }
-    }
-
-    @Test
-    public void testCapacityDecrease() {
-        ByteBuf buffer = newBuffer(3, 13);
-        assertEquals(13, buffer.maxCapacity());
-        assertEquals(3, buffer.capacity());
-        try {
-            buffer.capacity(2);
-            assertEquals(2, buffer.capacity());
-            assertEquals(13, buffer.maxCapacity());
-        } finally {
-            buffer.release();
-        }
-    }
-
-    @Test
-    public void testCapacityIncrease() {
-        ByteBuf buffer = newBuffer(3, 13);
-        assertEquals(13, buffer.maxCapacity());
-        assertEquals(3, buffer.capacity());
-        try {
-            buffer.capacity(4);
-            assertEquals(4, buffer.capacity());
-            assertEquals(13, buffer.maxCapacity());
-        } finally {
-            buffer.release();
         }
     }
 }

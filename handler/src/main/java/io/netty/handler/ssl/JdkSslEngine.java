@@ -24,26 +24,18 @@ import javax.net.ssl.SSLException;
 import javax.net.ssl.SSLParameters;
 import javax.net.ssl.SSLSession;
 
-class JdkSslEngine extends SSLEngine implements ApplicationProtocolAccessor {
+class JdkSslEngine extends SSLEngine {
     private final SSLEngine engine;
-    private volatile String applicationProtocol;
+    private final JdkSslSession session;
 
     JdkSslEngine(SSLEngine engine) {
         this.engine = engine;
+        session = new JdkSslSession(engine);
     }
 
     @Override
-    public String getNegotiatedApplicationProtocol() {
-        return applicationProtocol;
-    }
-
-    void setNegotiatedApplicationProtocol(String applicationProtocol) {
-        this.applicationProtocol = applicationProtocol;
-    }
-
-    @Override
-    public SSLSession getSession() {
-        return engine.getSession();
+    public JdkSslSession getSession() {
+        return session;
     }
 
     public SSLEngine getWrappedEngine() {

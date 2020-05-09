@@ -16,7 +16,6 @@
 package io.netty.util.concurrent;
 
 import io.netty.util.internal.InternalThreadLocalMap;
-import io.netty.util.internal.ObjectCleaner;
 import io.netty.util.internal.PlatformDependent;
 
 import java.util.Collections;
@@ -125,50 +124,15 @@ public class FastThreadLocal<V> {
 
     private final int index;
 
-    private final int cleanerFlagIndex;
-
     public FastThreadLocal() {
         index = InternalThreadLocalMap.nextVariableIndex();
-        cleanerFlagIndex = InternalThreadLocalMap.nextVariableIndex();
     }
 
     /**
      * Returns the current value for the current thread
      */
-    @SuppressWarnings("unchecked")
     public final V get() {
-        InternalThreadLocalMap threadLocalMap = InternalThreadLocalMap.get();
-        Object v = threadLocalMap.indexedVariable(index);
-        if (v != InternalThreadLocalMap.UNSET) {
-            return (V) v;
-        }
-
-        V value = initialize(threadLocalMap);
-        registerCleaner(threadLocalMap);
-        return value;
-    }
-
-    private void registerCleaner(final InternalThreadLocalMap threadLocalMap) {
-        Thread current = Thread.currentThread();
-        if (FastThreadLocalThread.willCleanupFastThreadLocals(current) ||
-            threadLocalMap.indexedVariable(cleanerFlagIndex) != InternalThreadLocalMap.UNSET) {
-            return;
-        }
-        // removeIndexedVariable(cleanerFlagIndex) isn't necessary because the finally cleanup is tied to the lifetime
-        // of the thread, and this Object will be discarded if the associated thread is GCed.
-        threadLocalMap.setIndexedVariable(cleanerFlagIndex, Boolean.TRUE);
-
-        // We will need to ensure we will trigger remove(InternalThreadLocalMap) so everything will be released
-        // and FastThreadLocal.onRemoval(...) will be called.
-        ObjectCleaner.register(current, new Runnable() {
-            @Override
-            public void run() {
-                remove(threadLocalMap);
-
-                // It's fine to not call InternalThreadLocalMap.remove() here as this will only be triggered once
-                // the Thread is collected by GC. In this case the ThreadLocal will be gone away already.
-            }
-        });
+        return get(InternalThreadLocalMap.get());
     }
 
     /**
@@ -203,10 +167,7 @@ public class FastThreadLocal<V> {
      */
     public final void set(V value) {
         if (value != InternalThreadLocalMap.UNSET) {
-            InternalThreadLocalMap threadLocalMap = InternalThreadLocalMap.get();
-            if (setKnownNotUnset(threadLocalMap, value)) {
-                registerCleaner(threadLocalMap);
-            }
+            set(InternalThreadLocalMap.get(), value);
         } else {
             remove();
         }
@@ -217,21 +178,12 @@ public class FastThreadLocal<V> {
      */
     public final void set(InternalThreadLocalMap threadLocalMap, V value) {
         if (value != InternalThreadLocalMap.UNSET) {
-            setKnownNotUnset(threadLocalMap, value);
+            if (threadLocalMap.setIndexedVariable(index, value)) {
+                addToVariablesToRemove(threadLocalMap, this);
+            }
         } else {
             remove(threadLocalMap);
         }
-    }
-
-    /**
-     * @return see {@link InternalThreadLocalMap#setIndexedVariable(int, Object)}.
-     */
-    private boolean setKnownNotUnset(InternalThreadLocalMap threadLocalMap, V value) {
-        if (threadLocalMap.setIndexedVariable(index, value)) {
-            addToVariablesToRemove(threadLocalMap, this);
-            return true;
-        }
-        return false;
     }
 
     /**

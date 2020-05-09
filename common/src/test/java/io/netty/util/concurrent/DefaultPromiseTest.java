@@ -16,13 +16,8 @@
 
 package io.netty.util.concurrent;
 
-import io.netty.util.internal.logging.InternalLogger;
-import io.netty.util.internal.logging.InternalLoggerFactory;
-import org.junit.BeforeClass;
 import org.junit.Test;
 
-import java.util.HashMap;
-import java.util.Map;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CountDownLatch;
@@ -33,8 +28,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static java.lang.Math.max;
-import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertThat;
@@ -42,27 +36,6 @@ import static org.junit.Assert.assertTrue;
 
 @SuppressWarnings("unchecked")
 public class DefaultPromiseTest {
-    private static final InternalLogger logger = InternalLoggerFactory.getInstance(DefaultPromiseTest.class);
-    private static int stackOverflowDepth;
-
-    @BeforeClass
-    public static void beforeClass() {
-        try {
-            findStackOverflowDepth();
-            throw new IllegalStateException("Expected StackOverflowError but didn't get it?!");
-        } catch (StackOverflowError e) {
-            logger.debug("StackOverflowError depth: {}", stackOverflowDepth);
-        }
-    }
-
-    private static void findStackOverflowDepth() {
-        ++stackOverflowDepth;
-        findStackOverflowDepth();
-    }
-
-    private static int stackOverflowTestDepth() {
-        return max(stackOverflowDepth << 1, stackOverflowDepth);
-    }
 
     @Test(expected = CancellationException.class)
     public void testCancellationExceptionIsThrownWhenBlockingGet() throws InterruptedException, ExecutionException {
@@ -80,36 +53,53 @@ public class DefaultPromiseTest {
     }
 
     @Test
-    public void testStackOverflowWithImmediateEventExecutorA() throws Exception {
-        testStackOverFlowChainedFuturesA(stackOverflowTestDepth(), ImmediateEventExecutor.INSTANCE, true);
-        testStackOverFlowChainedFuturesA(stackOverflowTestDepth(), ImmediateEventExecutor.INSTANCE, false);
-    }
+    public void testNoStackOverflowErrorWithImmediateEventExecutorA() throws Exception {
+        final Promise<Void>[] p = new DefaultPromise[128];
+        for (int i = 0; i < p.length; i ++) {
+            final int finalI = i;
+            p[i] = new DefaultPromise<Void>(ImmediateEventExecutor.INSTANCE);
+            p[i].addListener(new FutureListener<Void>() {
+                @Override
+                public void operationComplete(Future<Void> future) throws Exception {
+                    if (finalI + 1 < p.length) {
+                        p[finalI + 1].setSuccess(null);
+                    }
+                }
+            });
+        }
 
-    @Test
-    public void testNoStackOverflowWithDefaultEventExecutorA() throws Exception {
-        EventExecutor executor = new DefaultEventExecutor(null, new DefaultThreadFactory("test"));
-        try {
-            testStackOverFlowChainedFuturesA(stackOverflowTestDepth(), executor, true);
-            testStackOverFlowChainedFuturesA(stackOverflowTestDepth(), executor, false);
-        } finally {
-            executor.shutdownGracefully(0, 0, TimeUnit.MILLISECONDS);
+        p[0].setSuccess(null);
+
+        for (Promise<Void> a: p) {
+            assertThat(a.isSuccess(), is(true));
         }
     }
 
     @Test
-    public void testNoStackOverflowWithImmediateEventExecutorB() throws Exception {
-        testStackOverFlowChainedFuturesB(stackOverflowTestDepth(), ImmediateEventExecutor.INSTANCE, true);
-        testStackOverFlowChainedFuturesB(stackOverflowTestDepth(), ImmediateEventExecutor.INSTANCE, false);
-    }
+    public void testNoStackOverflowErrorWithImmediateEventExecutorB() throws Exception {
+        final Promise<Void>[] p = new DefaultPromise[128];
+        for (int i = 0; i < p.length; i ++) {
+            final int finalI = i;
+            p[i] = new DefaultPromise<Void>(ImmediateEventExecutor.INSTANCE);
+            p[i].addListener(new FutureListener<Void>() {
+                @Override
+                public void operationComplete(Future<Void> future) throws Exception {
+                    DefaultPromise.notifyListener(ImmediateEventExecutor.INSTANCE, future, new FutureListener<Void>() {
+                        @Override
+                        public void operationComplete(Future<Void> future) throws Exception {
+                            if (finalI + 1 < p.length) {
+                                p[finalI + 1].setSuccess(null);
+                            }
+                        }
+                    });
+                }
+            });
+        }
 
-    @Test
-    public void testNoStackOverflowWithDefaultEventExecutorB() throws Exception {
-        EventExecutor executor = new DefaultEventExecutor(null, new DefaultThreadFactory("test"));
-        try {
-            testStackOverFlowChainedFuturesB(stackOverflowTestDepth(), executor, true);
-            testStackOverFlowChainedFuturesB(stackOverflowTestDepth(), executor, false);
-        } finally {
-            executor.shutdownGracefully(0, 0, TimeUnit.MILLISECONDS);
+        p[0].setSuccess(null);
+
+        for (Promise<Void> a: p) {
+            assertThat(a.isSuccess(), is(true));
         }
     }
 
@@ -197,135 +187,13 @@ public class DefaultPromiseTest {
         testLateListenerIsOrderedCorrectly(fakeException());
     }
 
-    @Test
-    public void testSignalRace() {
-        final long wait = TimeUnit.NANOSECONDS.convert(10, TimeUnit.SECONDS);
-        EventExecutor executor = null;
-        try {
-            executor = new TestEventExecutor();
-
-            final int numberOfAttempts = 4096;
-            final Map<Thread, DefaultPromise<Void>> promises = new HashMap<Thread, DefaultPromise<Void>>();
-            for (int i = 0; i < numberOfAttempts; i++) {
-                final DefaultPromise<Void> promise = new DefaultPromise<Void>(executor);
-                final Thread thread = new Thread(new Runnable() {
-                    @Override
-                    public void run() {
-                        promise.setSuccess(null);
-                    }
-                });
-                promises.put(thread, promise);
-            }
-
-            for (final Map.Entry<Thread, DefaultPromise<Void>> promise : promises.entrySet()) {
-                promise.getKey().start();
-                final long start = System.nanoTime();
-                promise.getValue().awaitUninterruptibly(wait, TimeUnit.NANOSECONDS);
-                assertThat(System.nanoTime() - start, lessThan(wait));
-            }
-        } finally {
-            if (executor != null) {
-                executor.shutdownGracefully();
-            }
-        }
-    }
-
-    private static void testStackOverFlowChainedFuturesA(int promiseChainLength, final EventExecutor executor,
-                                                         boolean runTestInExecutorThread)
-            throws InterruptedException {
-        final Promise<Void>[] p = new DefaultPromise[promiseChainLength];
-        final CountDownLatch latch = new CountDownLatch(promiseChainLength);
-
-        if (runTestInExecutorThread) {
-            executor.execute(new Runnable() {
-                @Override
-                public void run() {
-                    testStackOverFlowChainedFuturesA(executor, p, latch);
-                }
-            });
-        } else {
-            testStackOverFlowChainedFuturesA(executor, p, latch);
-        }
-
-        assertTrue(latch.await(2, TimeUnit.SECONDS));
-        for (int i = 0; i < p.length; ++i) {
-            assertTrue("index " + i, p[i].isSuccess());
-        }
-    }
-
-    private static void testStackOverFlowChainedFuturesA(EventExecutor executor, final Promise<Void>[] p,
-                                                         final CountDownLatch latch) {
-        for (int i = 0; i < p.length; i ++) {
-            final int finalI = i;
-            p[i] = new DefaultPromise<Void>(executor);
-            p[i].addListener(new FutureListener<Void>() {
-                @Override
-                public void operationComplete(Future<Void> future) throws Exception {
-                    if (finalI + 1 < p.length) {
-                        p[finalI + 1].setSuccess(null);
-                    }
-                    latch.countDown();
-                }
-            });
-        }
-
-        p[0].setSuccess(null);
-    }
-
-    private static void testStackOverFlowChainedFuturesB(int promiseChainLength, final EventExecutor executor,
-                                                         boolean runTestInExecutorThread)
-            throws InterruptedException {
-        final Promise<Void>[] p = new DefaultPromise[promiseChainLength];
-        final CountDownLatch latch = new CountDownLatch(promiseChainLength);
-
-        if (runTestInExecutorThread) {
-            executor.execute(new Runnable() {
-                @Override
-                public void run() {
-                    testStackOverFlowChainedFuturesA(executor, p, latch);
-                }
-            });
-        } else {
-            testStackOverFlowChainedFuturesA(executor, p, latch);
-        }
-
-        assertTrue(latch.await(2, TimeUnit.SECONDS));
-        for (int i = 0; i < p.length; ++i) {
-            assertTrue("index " + i, p[i].isSuccess());
-        }
-    }
-
-    private static void testStackOverFlowChainedFuturesB(EventExecutor executor, final Promise<Void>[] p,
-                                                         final CountDownLatch latch) {
-        for (int i = 0; i < p.length; i ++) {
-            final int finalI = i;
-            p[i] = new DefaultPromise<Void>(executor);
-            p[i].addListener(new FutureListener<Void>() {
-                @Override
-                public void operationComplete(Future<Void> future) throws Exception {
-                    future.addListener(new FutureListener<Void>() {
-                        @Override
-                        public void operationComplete(Future<Void> future) throws Exception {
-                            if (finalI + 1 < p.length) {
-                                p[finalI + 1].setSuccess(null);
-                            }
-                            latch.countDown();
-                        }
-                    });
-                }
-            });
-        }
-
-        p[0].setSuccess(null);
-    }
-
     /**
      * This test is mean to simulate the following sequence of events, which all take place on the I/O thread:
      * <ol>
      * <li>A write is done</li>
      * <li>The write operation completes, and the promise state is changed to done</li>
-     * <li>A listener is added to the return from the write. The {@link FutureListener#operationComplete(Future)}
-     * updates state which must be invoked before the response to the previous write is read.</li>
+     * <li>A listener is added to the return from the write. The {@link FutureListener#operationComplete()} updates
+     * state which must be invoked before the response to the previous write is read.</li>
      * <li>The write operation</li>
      * </ol>
      */
@@ -447,8 +315,7 @@ public class DefaultPromiseTest {
             }
         });
 
-        assertTrue("Should have notified " + expectedCount + " listeners",
-                   latch.await(5, TimeUnit.SECONDS));
+        assertTrue("Should have notifed " + expectedCount + " listeners", latch.await(5, TimeUnit.SECONDS));
         executor.shutdownGracefully().sync();
     }
 

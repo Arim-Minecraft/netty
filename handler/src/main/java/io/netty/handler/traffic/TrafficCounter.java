@@ -302,10 +302,11 @@ public class TrafficCounter {
     /**
      * Change checkInterval between two computations in millisecond.
      *
-     * @param newCheckInterval The new check interval (in milliseconds)
+     * @param newcheckInterval
+     *            The new check interval (in milliseconds)
      */
-    public void configure(long newCheckInterval) {
-        long newInterval = newCheckInterval / 10 * 10;
+    public void configure(long newcheckInterval) {
+        long newInterval = newcheckInterval / 10 * 10;
         if (checkInterval.getAndSet(newInterval) != newInterval) {
             if (newInterval <= 0) {
                 stop();

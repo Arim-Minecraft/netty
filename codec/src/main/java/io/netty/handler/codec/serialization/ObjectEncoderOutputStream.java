@@ -80,22 +80,16 @@ public class ObjectEncoderOutputStream extends OutputStream implements
 
     @Override
     public void writeObject(Object obj) throws IOException {
-        ByteBuf buf = Unpooled.buffer(estimatedLength);
-        try {
-            ObjectOutputStream oout = new CompactObjectOutputStream(new ByteBufOutputStream(buf));
-            try {
-                oout.writeObject(obj);
-                oout.flush();
-            } finally {
-                oout.close();
-            }
+        ByteBufOutputStream bout = new ByteBufOutputStream(Unpooled.buffer(estimatedLength));
+        ObjectOutputStream oout = new CompactObjectOutputStream(bout);
+        oout.writeObject(obj);
+        oout.flush();
+        oout.close();
 
-            int objectSize = buf.readableBytes();
-            writeInt(objectSize);
-            buf.getBytes(0, this, objectSize);
-        } finally {
-            buf.release();
-        }
+        ByteBuf buffer = bout.buffer();
+        int objectSize = buffer.readableBytes();
+        writeInt(objectSize);
+        buffer.getBytes(0, this, objectSize);
     }
 
     @Override

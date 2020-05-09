@@ -142,8 +142,14 @@ public abstract class AbstractTrafficShapingHandler extends ChannelDuplexHandler
      *              for GlobalChannel TSH it is defined as
      *              {@value #GLOBALCHANNEL_DEFAULT_USER_DEFINED_WRITABILITY_INDEX}.
      */
-    protected int userDefinedWritabilityIndex() {
-        return CHANNEL_DEFAULT_USER_DEFINED_WRITABILITY_INDEX;
+    int userDefinedWritabilityIndex() {
+        if (this instanceof GlobalChannelTrafficShapingHandler) {
+            return GLOBALCHANNEL_DEFAULT_USER_DEFINED_WRITABILITY_INDEX;
+        } else if (this instanceof GlobalTrafficShapingHandler) {
+            return GLOBAL_DEFAULT_USER_DEFINED_WRITABILITY_INDEX;
+        } else {
+            return CHANNEL_DEFAULT_USER_DEFINED_WRITABILITY_INDEX;
+        }
     }
 
     /**
@@ -325,7 +331,7 @@ public abstract class AbstractTrafficShapingHandler extends ChannelDuplexHandler
     }
 
     /**
-     * @param checkInterval the interval in ms between each step check to set, default value being 1000 ms.
+     * @param checkInterval the interval in ms between each step check to set, default value beeing 1000 ms.
      */
     public void setCheckInterval(long checkInterval) {
         this.checkInterval = checkInterval;
@@ -454,7 +460,7 @@ public abstract class AbstractTrafficShapingHandler extends ChannelDuplexHandler
                 ctx.channel().read();
             }
             if (logger.isDebugEnabled()) {
-                logger.debug("Unsuspend final status => " + config.isAutoRead() + ':'
+                logger.debug("Unsupsend final status => " + config.isAutoRead() + ':'
                         + isHandlerActive(ctx));
             }
         }

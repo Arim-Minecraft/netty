@@ -15,13 +15,8 @@
  */
 package io.netty.handler.codec.http;
 
-import io.netty.buffer.ByteBuf;
-import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.CombinedChannelDuplexHandler;
 
-import java.util.ArrayDeque;
-import java.util.List;
-import java.util.Queue;
 
 /**
  * A combination of {@link HttpRequestDecoder} and {@link HttpResponseEncoder}
@@ -31,9 +26,6 @@ import java.util.Queue;
  */
 public final class HttpServerCodec
         extends CombinedChannelDuplexHandler<HttpRequestDecoder, HttpResponseEncoder> {
-
-    /** A queue that is used for correlating a request and a response. */
-    private final Queue<HttpMethod> queue = new ArrayDeque<HttpMethod>();
 
     /**
      * Creates a new instance with the default decoder options
@@ -48,79 +40,14 @@ public final class HttpServerCodec
      * Creates a new instance with the specified decoder options.
      */
     public HttpServerCodec(int maxInitialLineLength, int maxHeaderSize, int maxChunkSize) {
-        init(new HttpServerRequestDecoder(maxInitialLineLength, maxHeaderSize, maxChunkSize),
-                new HttpServerResponseEncoder());
+        super(new HttpRequestDecoder(maxInitialLineLength, maxHeaderSize, maxChunkSize), new HttpResponseEncoder());
     }
 
     /**
      * Creates a new instance with the specified decoder options.
      */
     public HttpServerCodec(int maxInitialLineLength, int maxHeaderSize, int maxChunkSize, boolean validateHeaders) {
-        init(new HttpServerRequestDecoder(maxInitialLineLength, maxHeaderSize, maxChunkSize, validateHeaders),
-                new HttpServerResponseEncoder());
-    }
-
-    /**
-     * Creates a new instance with the specified decoder options.
-     */
-    public HttpServerCodec(int maxInitialLineLength, int maxHeaderSize, int maxChunkSize, boolean validateHeaders,
-                           int initialBufferSize) {
-        init(
-          new HttpServerRequestDecoder(maxInitialLineLength, maxHeaderSize, maxChunkSize,
-                  validateHeaders, initialBufferSize),
-          new HttpServerResponseEncoder());
-    }
-
-    private final class HttpServerRequestDecoder extends HttpRequestDecoder {
-        HttpServerRequestDecoder(int maxInitialLineLength, int maxHeaderSize, int maxChunkSize) {
-            super(maxInitialLineLength, maxHeaderSize, maxChunkSize);
-        }
-
-        HttpServerRequestDecoder(int maxInitialLineLength, int maxHeaderSize, int maxChunkSize,
-                                        boolean validateHeaders) {
-            super(maxInitialLineLength, maxHeaderSize, maxChunkSize, validateHeaders);
-        }
-
-        HttpServerRequestDecoder(int maxInitialLineLength, int maxHeaderSize, int maxChunkSize,
-                                        boolean validateHeaders, int initialBufferSize) {
-            super(maxInitialLineLength, maxHeaderSize, maxChunkSize, validateHeaders, initialBufferSize);
-        }
-
-        @Override
-        protected void decode(ChannelHandlerContext ctx, ByteBuf buffer, List<Object> out) throws Exception {
-            int oldSize = out.size();
-            super.decode(ctx, buffer, out);
-            int size = out.size();
-            for (int i = oldSize; i < size; i++) {
-                Object obj = out.get(i);
-                if (obj instanceof HttpRequest) {
-                    queue.add(((HttpRequest) obj).getMethod());
-                }
-            }
-        }
-    }
-
-    private final class HttpServerResponseEncoder extends HttpResponseEncoder {
-
-        private HttpMethod method;
-
-        @Override
-        protected void sanitizeHeadersBeforeEncode(HttpResponse msg, boolean isAlwaysEmpty) {
-            int code = msg.getStatus().code();
-            if (!isAlwaysEmpty && method == HttpMethod.CONNECT && code >= 200 && code <= 299) {
-                // Stripping Transfer-Encoding:
-                // See https://tools.ietf.org/html/rfc7230#section-3.3.1
-                msg.headers().remove(HttpHeaders.Names.TRANSFER_ENCODING);
-                return;
-            }
-
-            super.sanitizeHeadersBeforeEncode(msg, isAlwaysEmpty);
-        }
-
-        @Override
-        protected boolean isContentAlwaysEmpty(@SuppressWarnings("unused") HttpResponse msg) {
-            method = queue.poll();
-            return HttpMethod.HEAD.equals(method) || super.isContentAlwaysEmpty(msg);
-        }
+        super(new HttpRequestDecoder(maxInitialLineLength, maxHeaderSize, maxChunkSize, validateHeaders),
+                new HttpResponseEncoder());
     }
 }

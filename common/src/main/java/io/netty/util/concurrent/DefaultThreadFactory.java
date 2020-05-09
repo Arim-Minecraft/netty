@@ -33,7 +33,6 @@ public class DefaultThreadFactory implements ThreadFactory {
     private final String prefix;
     private final boolean daemon;
     private final int priority;
-    protected final ThreadGroup threadGroup;
 
     public DefaultThreadFactory(Class<?> poolType) {
         this(poolType, false, Thread.NORM_PRIORITY);
@@ -63,7 +62,7 @@ public class DefaultThreadFactory implements ThreadFactory {
         this(toPoolName(poolType), daemon, priority);
     }
 
-    public static String toPoolName(Class<?> poolType) {
+    private static String toPoolName(Class<?> poolType) {
         if (poolType == null) {
             throw new NullPointerException("poolType");
         }
@@ -83,7 +82,7 @@ public class DefaultThreadFactory implements ThreadFactory {
         }
     }
 
-    public DefaultThreadFactory(String poolName, boolean daemon, int priority, ThreadGroup threadGroup) {
+    public DefaultThreadFactory(String poolName, boolean daemon, int priority) {
         if (poolName == null) {
             throw new NullPointerException("poolName");
         }
@@ -95,20 +94,20 @@ public class DefaultThreadFactory implements ThreadFactory {
         prefix = poolName + '-' + poolId.incrementAndGet() + '-';
         this.daemon = daemon;
         this.priority = priority;
-        this.threadGroup = threadGroup;
-    }
-
-    public DefaultThreadFactory(String poolName, boolean daemon, int priority) {
-        this(poolName, daemon, priority, System.getSecurityManager() == null ?
-                Thread.currentThread().getThreadGroup() : System.getSecurityManager().getThreadGroup());
     }
 
     @Override
     public Thread newThread(Runnable r) {
-        Thread t = newThread(FastThreadLocalRunnable.wrap(r), prefix + nextId.incrementAndGet());
+        Thread t = newThread(new DefaultRunnableDecorator(r), prefix + nextId.incrementAndGet());
         try {
-            if (t.isDaemon() != daemon) {
-                t.setDaemon(daemon);
+            if (t.isDaemon()) {
+                if (!daemon) {
+                    t.setDaemon(false);
+                }
+            } else {
+                if (daemon) {
+                    t.setDaemon(true);
+                }
             }
 
             if (t.getPriority() != priority) {
@@ -121,6 +120,24 @@ public class DefaultThreadFactory implements ThreadFactory {
     }
 
     protected Thread newThread(Runnable r, String name) {
-        return new FastThreadLocalThread(threadGroup, r, name);
+        return new FastThreadLocalThread(r, name);
+    }
+
+    private static final class DefaultRunnableDecorator implements Runnable {
+
+        private final Runnable r;
+
+        DefaultRunnableDecorator(Runnable r) {
+            this.r = r;
+        }
+
+        @Override
+        public void run() {
+            try {
+                r.run();
+            } finally {
+                FastThreadLocal.removeAll();
+            }
+        }
     }
 }

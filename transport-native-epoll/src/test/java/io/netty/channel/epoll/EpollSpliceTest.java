@@ -27,14 +27,13 @@ import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.channel.unix.FileDescriptor;
-import io.netty.testsuite.util.TestUtils;
-import io.netty.util.NetUtil;
 import org.junit.Assert;
 import org.junit.Test;
 
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -59,7 +58,7 @@ public class EpollSpliceTest {
         ServerBootstrap bs = new ServerBootstrap();
         bs.channel(EpollServerSocketChannel.class);
         bs.group(group).childHandler(sh);
-        final Channel sc = bs.bind(NetUtil.LOCALHOST, 0).syncUninterruptibly().channel();
+        final Channel sc = bs.bind(new InetSocketAddress(0)).syncUninterruptibly().channel();
 
         ServerBootstrap bs2 = new ServerBootstrap();
         bs2.channel(EpollServerSocketChannel.class);
@@ -125,7 +124,7 @@ public class EpollSpliceTest {
                 });
             }
         });
-        Channel pc = bs2.bind(NetUtil.LOCALHOST, 0).syncUninterruptibly().channel();
+        Channel pc = bs2.bind(new InetSocketAddress(0)).syncUninterruptibly().channel();
 
         Bootstrap cb = new Bootstrap();
         cb.group(group);
@@ -201,7 +200,7 @@ public class EpollSpliceTest {
         bs.channel(EpollServerSocketChannel.class);
         bs.group(group).childHandler(sh);
         bs.childOption(EpollChannelOption.EPOLL_MODE, EpollMode.LEVEL_TRIGGERED);
-        Channel sc = bs.bind(NetUtil.LOCALHOST, 0).syncUninterruptibly().channel();
+        Channel sc = bs.bind(new InetSocketAddress(0)).syncUninterruptibly().channel();
 
         Bootstrap cb = new Bootstrap();
         cb.group(group);

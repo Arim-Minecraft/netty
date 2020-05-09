@@ -29,7 +29,7 @@ import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpVersion;
 import io.netty.handler.codec.http.LastHttpContent;
 import io.netty.handler.stream.ChunkedInput;
-import io.netty.util.internal.PlatformDependent;
+import io.netty.util.internal.ThreadLocalRandom;
 
 import java.io.File;
 import java.io.IOException;
@@ -37,25 +37,16 @@ import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
 import java.util.regex.Pattern;
 
-import static io.netty.buffer.Unpooled.wrappedBuffer;
-import static java.util.AbstractMap.SimpleImmutableEntry;
+import static io.netty.buffer.Unpooled.*;
 
 /**
  * This encoder will help to encode Request for a FORM as POST.
- *
- * <P>According to RFC 7231, POST, PUT and OPTIONS allow to have a body.
- * This encoder will support widely all methods except TRACE since the RFC notes
- * for GET, DELETE, HEAD and CONNECT: (replaces XXX by one of these methods)</P>
- * <P>"A payload within a XXX request message has no defined semantics;
- * sending a payload body on a XXX request might cause some existing
- * implementations to reject the request."</P>
- * <P>On the contrary, for TRACE method, RFC says:</P>
- * <P>"A client MUST NOT send a message body in a TRACE request."</P>
  */
 public class HttpPostRequestEncoder implements ChunkedInput<HttpContent> {
     /**
@@ -74,14 +65,12 @@ public class HttpPostRequestEncoder implements ChunkedInput<HttpContent> {
         RFC3986
     }
 
-    private static final Map.Entry[] percentEncodings;
+    private static final Map<Pattern, String> percentEncodings = new HashMap<Pattern, String>();
 
     static {
-        percentEncodings = new Map.Entry[] {
-                new SimpleImmutableEntry<Pattern, String>(Pattern.compile("\\*"), "%2A"),
-                new SimpleImmutableEntry<Pattern, String>(Pattern.compile("\\+"), "%20"),
-                new SimpleImmutableEntry<Pattern, String>(Pattern.compile("~"), "%7E")
-        };
+        percentEncodings.put(Pattern.compile("\\*"), "%2A");
+        percentEncodings.put(Pattern.compile("\\+"), "%20");
+        percentEncodings.put(Pattern.compile("%7E"), "~");
     }
 
     /**
@@ -143,7 +132,7 @@ public class HttpPostRequestEncoder implements ChunkedInput<HttpContent> {
      * @throws NullPointerException
      *             for request
      * @throws ErrorDataEncoderException
-     *             if the request is a TRACE
+     *             if the request is not a POST
      */
     public HttpPostRequestEncoder(HttpRequest request, boolean multipart) throws ErrorDataEncoderException {
         this(new DefaultHttpDataFactory(DefaultHttpDataFactory.MINSIZE), request, multipart,
@@ -161,7 +150,7 @@ public class HttpPostRequestEncoder implements ChunkedInput<HttpContent> {
      * @throws NullPointerException
      *             for request and factory
      * @throws ErrorDataEncoderException
-     *             if the request is a TRACE
+     *             if the request is not a POST
      */
     public HttpPostRequestEncoder(HttpDataFactory factory, HttpRequest request, boolean multipart)
             throws ErrorDataEncoderException {
@@ -183,7 +172,7 @@ public class HttpPostRequestEncoder implements ChunkedInput<HttpContent> {
      * @throws NullPointerException
      *             for request or charset or factory
      * @throws ErrorDataEncoderException
-     *             if the request is a TRACE
+     *             if the request is not a POST
      */
     public HttpPostRequestEncoder(
             HttpDataFactory factory, HttpRequest request, boolean multipart, Charset charset,
@@ -198,9 +187,8 @@ public class HttpPostRequestEncoder implements ChunkedInput<HttpContent> {
         if (charset == null) {
             throw new NullPointerException("charset");
         }
-        HttpMethod method = request.getMethod();
-        if (method.equals(HttpMethod.TRACE)) {
-            throw new ErrorDataEncoderException("Cannot create a Encoder if request is a TRACE");
+        if (request.getMethod() != HttpMethod.POST) {
+            throw new ErrorDataEncoderException("Cannot create a Encoder if not a POST");
         }
         this.request = request;
         this.charset = charset;
@@ -276,7 +264,7 @@ public class HttpPostRequestEncoder implements ChunkedInput<HttpContent> {
      */
     private static String getNewMultipartDelimiter() {
         // construct a generated delimiter
-        return Long.toHexString(PlatformDependent.threadLocalRandom().nextLong()).toLowerCase();
+        return Long.toHexString(ThreadLocalRandom.current().nextLong()).toLowerCase();
     }
 
     /**
@@ -458,7 +446,7 @@ public class HttpPostRequestEncoder implements ChunkedInput<HttpContent> {
          *      add multipart delimiter, multipart body header and Data to multipart list
          *      reset currentFileUpload, duringMixedMode
          * if FileUpload: take care of multiple file for one field => mixed mode
-         *      if (duringMixedMode)
+         *      if (duringMixeMode)
          *          if (currentFileUpload.name == data.name)
          *              add mixedmultipart delimiter, mixedmultipart body header and Data to multipart list
          *          else
@@ -782,7 +770,6 @@ public class HttpPostRequestEncoder implements ChunkedInput<HttpContent> {
      * @throws ErrorDataEncoderException
      *             if the encoding is in error
      */
-    @SuppressWarnings("unchecked")
     private String encodeAttribute(String s, Charset charset) throws ErrorDataEncoderException {
         if (s == null) {
             return "";
@@ -790,7 +777,7 @@ public class HttpPostRequestEncoder implements ChunkedInput<HttpContent> {
         try {
             String encoded = URLEncoder.encode(s, charset.name());
             if (encoderMode == EncoderMode.RFC3986) {
-                for (Map.Entry<Pattern, String> entry : percentEncodings) {
+                for (Map.Entry<Pattern, String> entry : percentEncodings.entrySet()) {
                     String replacement = entry.getValue();
                     encoded = entry.getKey().matcher(encoded).replaceAll(replacement);
                 }
@@ -821,7 +808,10 @@ public class HttpPostRequestEncoder implements ChunkedInput<HttpContent> {
     private ByteBuf fillByteBuf() {
         int length = currentBuffer.readableBytes();
         if (length > HttpPostBodyUtil.chunkSize) {
-            return currentBuffer.readSlice(HttpPostBodyUtil.chunkSize).retain();
+            ByteBuf slice = currentBuffer.slice(currentBuffer.readerIndex(), HttpPostBodyUtil.chunkSize);
+            currentBuffer.retain();
+            currentBuffer.skipBytes(HttpPostBodyUtil.chunkSize);
+            return slice;
         } else {
             // to continue
             ByteBuf slice = currentBuffer;

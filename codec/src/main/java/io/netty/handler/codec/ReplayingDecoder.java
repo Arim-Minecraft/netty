@@ -16,11 +16,11 @@
 package io.netty.handler.codec;
 
 import io.netty.buffer.ByteBuf;
-import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelPipeline;
 import io.netty.util.Signal;
+import io.netty.util.internal.RecyclableArrayList;
 import io.netty.util.internal.StringUtil;
 
 import java.util.List;
@@ -322,19 +322,37 @@ public abstract class ReplayingDecoder<S> extends ByteToMessageDecoder {
     }
 
     @Override
-    final void channelInputClosed(ChannelHandlerContext ctx, List<Object> out) throws Exception {
+    public void channelInactive(ChannelHandlerContext ctx) throws Exception {
+        RecyclableArrayList out = RecyclableArrayList.newInstance();
         try {
             replayable.terminate();
-            if (cumulation != null) {
-                callDecode(ctx, internalBuffer(), out);
-                decodeLast(ctx, replayable, out);
-            } else {
-                replayable.setCumulation(Unpooled.EMPTY_BUFFER);
-                decodeLast(ctx, replayable, out);
-            }
+            callDecode(ctx, internalBuffer(), out);
+            decodeLast(ctx, replayable, out);
         } catch (Signal replay) {
             // Ignore
             replay.expect(REPLAY);
+        } catch (DecoderException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new DecoderException(e);
+        } finally {
+            try {
+                if (cumulation != null) {
+                    cumulation.release();
+                    cumulation = null;
+                }
+
+                int size = out.size();
+                if (size > 0) {
+                    fireChannelRead(ctx, out, size);
+                    // Something was read, call fireChannelReadComplete()
+                    ctx.fireChannelReadComplete();
+                }
+                ctx.fireChannelInactive();
+            } finally {
+                // recycle in all cases
+                out.recycle();
+            }
         }
     }
 
@@ -349,22 +367,13 @@ public abstract class ReplayingDecoder<S> extends ByteToMessageDecoder {
                 if (outSize > 0) {
                     fireChannelRead(ctx, out, outSize);
                     out.clear();
-
-                    // Check if this handler was removed before continuing with decoding.
-                    // If it was removed, it is not safe to continue to operate on the buffer.
-                    //
-                    // See:
-                    // - https://github.com/netty/netty/issues/4635
-                    if (ctx.isRemoved()) {
-                        break;
-                    }
                     outSize = 0;
                 }
 
                 S oldState = state;
                 int oldInputLength = in.readableBytes();
                 try {
-                    decodeRemovalReentryProtection(ctx, replayable, out);
+                    decode(ctx, replayable, out);
 
                     // Check if this handler was removed before continuing the loop.
                     // If it was removed, it is not safe to continue to operate on the buffer.
@@ -418,7 +427,7 @@ public abstract class ReplayingDecoder<S> extends ByteToMessageDecoder {
             }
         } catch (DecoderException e) {
             throw e;
-        } catch (Exception cause) {
+        } catch (Throwable cause) {
             throw new DecoderException(cause);
         }
     }

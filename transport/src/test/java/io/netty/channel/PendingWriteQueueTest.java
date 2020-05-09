@@ -22,9 +22,6 @@ import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.util.CharsetUtil;
 import org.junit.Test;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.*;
@@ -172,7 +169,6 @@ public class PendingWriteQueueTest {
     private static void assertQueueEmpty(PendingWriteQueue queue) {
         assertTrue(queue.isEmpty());
         assertEquals(0, queue.size());
-        assertEquals(0, queue.bytes());
         assertNull(queue.current());
         assertNull(queue.removeAndWrite());
         assertNull(queue.removeAndWriteAll());
@@ -198,14 +194,9 @@ public class PendingWriteQueueTest {
         assertNull(channel.readOutbound());
     }
 
-    private static EmbeddedChannel newChannel() {
-        // Add a handler so we can access a ChannelHandlerContext via the ChannelPipeline.
-        return new EmbeddedChannel(new ChannelHandlerAdapter() { });
-    }
-
     @Test
-    public void testRemoveAndFailAllReentrantFailAll() {
-        EmbeddedChannel channel = newChannel();
+    public void testRemoveAndFailAllReentrance() {
+        EmbeddedChannel channel = new EmbeddedChannel();
         final PendingWriteQueue queue = new PendingWriteQueue(channel.pipeline().firstContext());
 
         ChannelPromise promise = channel.newPromise();
@@ -220,97 +211,14 @@ public class PendingWriteQueueTest {
         ChannelPromise promise2 = channel.newPromise();
         queue.add(2L, promise2);
         queue.removeAndFailAll(new Exception());
-        assertTrue(promise.isDone());
         assertFalse(promise.isSuccess());
-        assertTrue(promise2.isDone());
         assertFalse(promise2.isSuccess());
         assertFalse(channel.finish());
-    }
-
-    @Test
-    public void testRemoveAndWriteAllReentrantWrite() {
-        EmbeddedChannel channel = new EmbeddedChannel(new ChannelOutboundHandlerAdapter() {
-            @Override
-            public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) {
-                // Convert to writeAndFlush(...) so the promise will be notified by the transport.
-                ctx.writeAndFlush(msg, promise);
-            }
-        }, new ChannelOutboundHandlerAdapter());
-
-        final PendingWriteQueue queue = new PendingWriteQueue(channel.pipeline().lastContext());
-
-        ChannelPromise promise = channel.newPromise();
-        final ChannelPromise promise3 = channel.newPromise();
-        promise.addListener(new ChannelFutureListener() {
-            @Override
-            public void operationComplete(ChannelFuture future) {
-                queue.add(3L, promise3);
-            }
-        });
-        queue.add(1L, promise);
-        ChannelPromise promise2 = channel.newPromise();
-        queue.add(2L, promise2);
-        queue.removeAndWriteAll();
-
-        assertTrue(promise.isDone());
-        assertTrue(promise.isSuccess());
-        assertTrue(promise2.isDone());
-        assertTrue(promise2.isSuccess());
-        assertTrue(promise3.isDone());
-        assertTrue(promise3.isSuccess());
-        assertTrue(channel.finish());
-        assertEquals(1L, channel.readOutbound());
-        assertEquals(2L, channel.readOutbound());
-        assertEquals(3L, channel.readOutbound());
-    }
-
-    @Test
-    public void testRemoveAndFailAllReentrantWrite() {
-        final List<Integer> failOrder = Collections.synchronizedList(new ArrayList<Integer>());
-        EmbeddedChannel channel = newChannel();
-        final PendingWriteQueue queue = new PendingWriteQueue(channel.pipeline().firstContext());
-
-        ChannelPromise promise = channel.newPromise();
-        final ChannelPromise promise3 = channel.newPromise();
-        promise3.addListener(new ChannelFutureListener() {
-            @Override
-            public void operationComplete(ChannelFuture future) throws Exception {
-                failOrder.add(3);
-            }
-        });
-        promise.addListener(new ChannelFutureListener() {
-            @Override
-            public void operationComplete(ChannelFuture future) throws Exception {
-                failOrder.add(1);
-                queue.add(3L, promise3);
-            }
-        });
-        queue.add(1L, promise);
-
-        ChannelPromise promise2 = channel.newPromise();
-        promise2.addListener(new ChannelFutureListener() {
-            @Override
-            public void operationComplete(ChannelFuture future) throws Exception {
-                failOrder.add(2);
-            }
-        });
-        queue.add(2L, promise2);
-        queue.removeAndFailAll(new Exception());
-        assertTrue(promise.isDone());
-        assertFalse(promise.isSuccess());
-        assertTrue(promise2.isDone());
-        assertFalse(promise2.isSuccess());
-        assertTrue(promise3.isDone());
-        assertFalse(promise3.isSuccess());
-        assertFalse(channel.finish());
-        assertEquals(1, (int) failOrder.get(0));
-        assertEquals(2, (int) failOrder.get(1));
-        assertEquals(3, (int) failOrder.get(2));
     }
 
     @Test
     public void testRemoveAndWriteAllReentrance() {
-        EmbeddedChannel channel = newChannel();
+        EmbeddedChannel channel = new EmbeddedChannel();
         final PendingWriteQueue queue = new PendingWriteQueue(channel.pipeline().firstContext());
 
         ChannelPromise promise = channel.newPromise();
@@ -339,7 +247,7 @@ public class PendingWriteQueueTest {
     // See https://github.com/netty/netty/issues/3967
     @Test
     public void testCloseChannelOnCreation() {
-        EmbeddedChannel channel = newChannel();
+        EmbeddedChannel channel = new EmbeddedChannel(new ChannelInboundHandlerAdapter());
         ChannelHandlerContext context = channel.pipeline().firstContext();
         channel.close().syncUninterruptibly();
 
@@ -377,7 +285,5 @@ public class PendingWriteQueueTest {
         }
     }
 
-    private static final class TestException extends Exception {
-        private static final long serialVersionUID = -9018570103039458401L;
-    }
+    private static final class TestException extends Exception { }
 }

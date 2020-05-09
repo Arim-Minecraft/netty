@@ -20,9 +20,8 @@ import static io.netty.handler.codec.http.cookie.CookieUtil.addQuoted;
 import static io.netty.handler.codec.http.cookie.CookieUtil.stringBuilder;
 import static io.netty.handler.codec.http.cookie.CookieUtil.stripTrailingSeparator;
 import static io.netty.util.internal.ObjectUtil.checkNotNull;
-
 import io.netty.handler.codec.http.HttpHeaderDateFormat;
-import io.netty.handler.codec.http.HttpResponse;
+import io.netty.handler.codec.http.HttpRequest;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -39,12 +38,12 @@ import java.util.Map;
  *
  * As Netty's Cookie merges Expires and MaxAge into one single field, only Max-Age field is sent.
  *
- * Note that multiple cookies must be sent as separate "Set-Cookie" headers.
+ * Note that multiple cookies are supposed to be sent at once in a single "Set-Cookie" header.
  *
  * <pre>
  * // Example
- * {@link HttpResponse} res = ...;
- * res.setHeader("Set-Cookie", {@link ServerCookieEncoder}.encode("JSESSIONID", "1234"));
+ * {@link HttpRequest} req = ...;
+ * res.setHeader("Cookie", {@link ServerCookieEncoder}.encode("JSESSIONID", "1234"));
  * </pre>
  *
  * @see ServerCookieDecoder
@@ -129,7 +128,7 @@ public final class ServerCookieEncoder extends CookieEncoder {
      * @param nameToLastIndex A map from cookie name to index of last cookie instance.
      * @return The encoded list with all but the last instance of a named cookie.
      */
-    private static List<String> dedup(List<String> encoded, Map<String, Integer> nameToLastIndex) {
+    private List<String> dedup(List<String> encoded, Map<String, Integer> nameToLastIndex) {
         boolean[] isLastInstance = new boolean[encoded.size()];
         for (int idx : nameToLastIndex.values()) {
             isLastInstance[idx] = true;

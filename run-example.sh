@@ -31,7 +31,6 @@ EXAMPLE_MAP=(
   'proxy-server:io.netty.example.proxy.HexDumpProxy'
   'socksproxy-server:io.netty.example.socksproxy.SocksServer'
   'uptime-client:io.netty.example.uptime.UptimeClient'
-  'uptime-server:io.netty.example.uptime.UptimeServer'
   'sctpecho-client:io.netty.example.sctp.SctpEchoClient'
   'sctpecho-server:io.netty.example.sctp.SctpEchoServer'
   'localecho:io.netty.example.localecho.LocalEcho'
@@ -92,5 +91,5 @@ fi
 
 cd "`dirname "$0"`"/example
 echo "[INFO] Running: $EXAMPLE ($EXAMPLE_CLASS $EXAMPLE_ARGS)"
-exec mvn -q -nsu compile exec:exec -Dcheckstyle.skip=true -Dforbiddenapis.skip=true -DargLine.example="$EXAMPLE_ARGS" -DexampleClass="$EXAMPLE_CLASS"
+exec mvn -q -nsu compile exec:exec -Dcheckstyle.skip=true -DargLine.example="$EXAMPLE_ARGS" -DexampleClass="$EXAMPLE_CLASS"
 

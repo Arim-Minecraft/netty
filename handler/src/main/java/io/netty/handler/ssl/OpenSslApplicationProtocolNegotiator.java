@@ -17,10 +17,7 @@ package io.netty.handler.ssl;
 
 /**
  * OpenSSL version of {@link ApplicationProtocolNegotiator}.
- *
- * @deprecated use {@link ApplicationProtocolConfig}
  */
-@Deprecated
 public interface OpenSslApplicationProtocolNegotiator extends ApplicationProtocolNegotiator {
 
     /**

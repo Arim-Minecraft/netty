@@ -29,7 +29,7 @@ import static org.hamcrest.Matchers.*;
 import static org.junit.Assert.*;
 
 public class HttpResponseEncoderTest {
-    private static final long INTEGER_OVERFLOW = (long) Integer.MAX_VALUE + 1;
+    private static final long INTEGER_OVERLFLOW = (long) Integer.MAX_VALUE + 1;
     private static final FileRegion FILE_REGION = new DummyLongFileRegion();
 
     @Test
@@ -77,7 +77,7 @@ public class HttpResponseEncoderTest {
 
         @Override
         public long count() {
-            return INTEGER_OVERFLOW;
+            return INTEGER_OVERLFLOW;
         }
 
         @Override
@@ -132,209 +132,6 @@ public class HttpResponseEncoderTest {
         buffer = (ByteBuf) channel.readOutbound();
         assertThat(buffer, is(sameInstance(Unpooled.EMPTY_BUFFER)));
 
-        assertFalse(channel.finish());
-    }
-
-    @Test
-    public void testEmptyContentChunked() throws Exception {
-        testEmptyContent(true);
-    }
-
-    @Test
-    public void testEmptyContentNotChunked() throws Exception {
-        testEmptyContent(false);
-    }
-
-    private static void testEmptyContent(boolean chunked) throws Exception {
-        String content = "netty rocks";
-        ByteBuf contentBuffer = Unpooled.copiedBuffer(content, CharsetUtil.US_ASCII);
-        int length = contentBuffer.readableBytes();
-
-        EmbeddedChannel channel = new EmbeddedChannel(new HttpResponseEncoder());
-        HttpResponse response = new DefaultHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK);
-        if (!chunked) {
-            HttpHeaders.setContentLength(response, length);
-        }
-        assertTrue(channel.writeOutbound(response));
-        assertTrue(channel.writeOutbound(new DefaultHttpContent(Unpooled.EMPTY_BUFFER)));
-        assertTrue(channel.writeOutbound(new DefaultLastHttpContent(contentBuffer)));
-
-        ByteBuf buffer = (ByteBuf) channel.readOutbound();
-        if (!chunked) {
-            assertEquals("HTTP/1.1 200 OK\r\nContent-Length: " + length + "\r\n\r\n",
-                    buffer.toString(CharsetUtil.US_ASCII));
-        } else {
-            assertEquals("HTTP/1.1 200 OK\r\n\r\n", buffer.toString(CharsetUtil.US_ASCII));
-        }
-        buffer.release();
-
-        // Test writing an empty buffer works when the encoder is not at ST_INIT.
-        buffer = (ByteBuf) channel.readOutbound();
-        assertEquals(0, buffer.readableBytes());
-        buffer.release();
-
-        buffer = (ByteBuf) channel.readOutbound();
-        assertEquals(length, buffer.readableBytes());
-        buffer.release();
-
-        assertFalse(channel.finish());
-    }
-
-    @Test
-    public void testStatusNoContent() throws Exception {
-        EmbeddedChannel channel = new EmbeddedChannel(new HttpResponseEncoder());
-        assertEmptyResponse(channel, HttpResponseStatus.NO_CONTENT, null, false);
-        assertFalse(channel.finish());
-    }
-
-    @Test
-    public void testStatusNoContentContentLength() throws Exception {
-        EmbeddedChannel channel = new EmbeddedChannel(new HttpResponseEncoder());
-        assertEmptyResponse(channel, HttpResponseStatus.NO_CONTENT, HttpHeaders.Names.CONTENT_LENGTH, true);
-        assertFalse(channel.finish());
-    }
-
-    @Test
-    public void testStatusNoContentTransferEncoding() throws Exception {
-        EmbeddedChannel channel = new EmbeddedChannel(new HttpResponseEncoder());
-        assertEmptyResponse(channel, HttpResponseStatus.NO_CONTENT, HttpHeaders.Names.TRANSFER_ENCODING, true);
-        assertFalse(channel.finish());
-    }
-
-    @Test
-    public void testStatusNotModified() throws Exception {
-        EmbeddedChannel channel = new EmbeddedChannel(new HttpResponseEncoder());
-        assertEmptyResponse(channel, HttpResponseStatus.NOT_MODIFIED, null, false);
-        assertFalse(channel.finish());
-    }
-
-    @Test
-    public void testStatusNotModifiedContentLength() throws Exception {
-        EmbeddedChannel channel = new EmbeddedChannel(new HttpResponseEncoder());
-        assertEmptyResponse(channel, HttpResponseStatus.NOT_MODIFIED, HttpHeaders.Names.CONTENT_LENGTH, false);
-        assertFalse(channel.finish());
-    }
-
-    @Test
-    public void testStatusNotModifiedTransferEncoding() throws Exception {
-        EmbeddedChannel channel = new EmbeddedChannel(new HttpResponseEncoder());
-        assertEmptyResponse(channel, HttpResponseStatus.NOT_MODIFIED, HttpHeaders.Names.TRANSFER_ENCODING, false);
-        assertFalse(channel.finish());
-    }
-
-    @Test
-    public void testStatusInformational() throws Exception {
-        EmbeddedChannel channel = new EmbeddedChannel(new HttpResponseEncoder());
-        for (int code = 100; code < 200; code++) {
-            HttpResponseStatus status = HttpResponseStatus.valueOf(code);
-            assertEmptyResponse(channel, status, null, false);
-        }
-        assertFalse(channel.finish());
-    }
-
-    @Test
-    public void testStatusInformationalContentLength() throws Exception {
-        EmbeddedChannel channel = new EmbeddedChannel(new HttpResponseEncoder());
-        for (int code = 100; code < 200; code++) {
-            HttpResponseStatus status = HttpResponseStatus.valueOf(code);
-            assertEmptyResponse(channel, status, HttpHeaders.Names.CONTENT_LENGTH, code != 101);
-        }
-        assertFalse(channel.finish());
-    }
-
-    @Test
-    public void testStatusInformationalTransferEncoding() throws Exception {
-        EmbeddedChannel channel = new EmbeddedChannel(new HttpResponseEncoder());
-        for (int code = 100; code < 200; code++) {
-            HttpResponseStatus status = HttpResponseStatus.valueOf(code);
-            assertEmptyResponse(channel, status, HttpHeaders.Names.TRANSFER_ENCODING, code != 101);
-        }
-        assertFalse(channel.finish());
-    }
-
-    private static void assertEmptyResponse(EmbeddedChannel channel, HttpResponseStatus status,
-                                            CharSequence headerName, boolean headerStripped) {
-        HttpResponse response = new DefaultHttpResponse(HttpVersion.HTTP_1_1, status);
-        if (HttpHeaders.Names.CONTENT_LENGTH.equals(headerName)) {
-            response.headers().set(headerName, "0");
-        } else if (HttpHeaders.Names.TRANSFER_ENCODING.equals(headerName)) {
-            response.headers().set(headerName, HttpHeaders.Values.CHUNKED);
-        }
-
-        assertTrue(channel.writeOutbound(response));
-        assertTrue(channel.writeOutbound(LastHttpContent.EMPTY_LAST_CONTENT));
-
-        ByteBuf buffer = (ByteBuf) channel.readOutbound();
-        StringBuilder responseText = new StringBuilder();
-        responseText.append(HttpVersion.HTTP_1_1.toString()).append(' ').append(status.toString()).append("\r\n");
-        if (!headerStripped && headerName != null) {
-            responseText.append(headerName).append(": ");
-
-            if (HttpHeaders.Names.CONTENT_LENGTH.equals(headerName)) {
-                responseText.append('0');
-            } else {
-                responseText.append(HttpHeaders.Values.CHUNKED);
-            }
-            responseText.append("\r\n");
-        }
-        responseText.append("\r\n");
-
-        assertEquals(responseText.toString(), buffer.toString(CharsetUtil.US_ASCII));
-
-        buffer.release();
-
-        buffer = (ByteBuf) channel.readOutbound();
-        buffer.release();
-    }
-
-    @Test
-    public void testEmptyContentsChunked() throws Exception {
-        testEmptyContents(true, false);
-    }
-
-    @Test
-    public void testEmptyContentsChunkedWithTrailers() throws Exception {
-        testEmptyContents(true, true);
-    }
-
-    @Test
-    public void testEmptyContentsNotChunked() throws Exception {
-        testEmptyContents(false, false);
-    }
-
-    @Test
-    public void testEmptyContentNotsChunkedWithTrailers() throws Exception {
-        testEmptyContents(false, true);
-    }
-
-    private void testEmptyContents(boolean chunked, boolean trailers) throws Exception {
-        HttpResponseEncoder encoder = new HttpResponseEncoder();
-        EmbeddedChannel channel = new EmbeddedChannel(encoder);
-        HttpResponse request = new DefaultHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK);
-        if (chunked) {
-            HttpHeaders.setTransferEncodingChunked(request);
-        }
-        assertTrue(channel.writeOutbound(request));
-
-        ByteBuf contentBuffer = Unpooled.buffer();
-        assertTrue(channel.writeOutbound(new DefaultHttpContent(contentBuffer)));
-
-        ByteBuf lastContentBuffer = Unpooled.buffer();
-        LastHttpContent last = new DefaultLastHttpContent(lastContentBuffer);
-        if (trailers) {
-            last.trailingHeaders().set("X-Netty-Test", "true");
-        }
-        assertTrue(channel.writeOutbound(last));
-
-        // Ensure we only produce ByteBuf instances.
-        ByteBuf head = (ByteBuf) channel.readOutbound();
-        assertTrue(head.release());
-
-        ByteBuf content = (ByteBuf) channel.readOutbound();
-        content.release();
-
-        ByteBuf lastContent = (ByteBuf) channel.readOutbound();
-        lastContent.release();
         assertFalse(channel.finish());
     }
 }

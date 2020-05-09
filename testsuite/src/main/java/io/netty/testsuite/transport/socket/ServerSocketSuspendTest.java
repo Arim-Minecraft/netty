@@ -21,7 +21,6 @@ import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.channel.ChannelOption;
-import io.netty.util.internal.SocketUtils;
 import org.junit.Ignore;
 import org.junit.Test;
 
@@ -58,7 +57,7 @@ public class ServerSocketSuspendTest extends AbstractServerSocketTest {
             long startTime = System.nanoTime();
             for (int i = 0; i < NUM_CHANNELS; i ++) {
                 Socket s = new Socket();
-                SocketUtils.connect(s, sc.localAddress(), 10000);
+                s.connect(addr, 10000);
                 sockets.add(s);
             }
 
@@ -80,7 +79,7 @@ public class ServerSocketSuspendTest extends AbstractServerSocketTest {
             long startTime = System.nanoTime();
             for (int i = 0; i < NUM_CHANNELS; i ++) {
                 Socket s = new Socket();
-                s.connect(sc.localAddress(), 10000);
+                s.connect(addr, 10000);
                 sockets.add(s);
             }
             long endTime = System.nanoTime();

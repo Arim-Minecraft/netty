@@ -21,6 +21,7 @@ import io.netty.buffer.ByteBufAllocator;
 import io.netty.channel.ChannelOption;
 import io.netty.testsuite.transport.AbstractComboTestsuiteTest;
 import io.netty.testsuite.transport.TestsuitePermutation;
+import io.netty.testsuite.util.TestUtils;
 import io.netty.util.NetUtil;
 
 import java.net.InetSocketAddress;
@@ -28,6 +29,8 @@ import java.net.SocketAddress;
 import java.util.List;
 
 public abstract class AbstractSocketTest extends AbstractComboTestsuiteTest<ServerBootstrap, Bootstrap> {
+
+    protected volatile SocketAddress addr;
 
     protected AbstractSocketTest() {
         super(ServerBootstrap.class, Bootstrap.class);
@@ -40,13 +43,16 @@ public abstract class AbstractSocketTest extends AbstractComboTestsuiteTest<Serv
 
     @Override
     protected void configure(ServerBootstrap bootstrap, Bootstrap bootstrap2, ByteBufAllocator allocator) {
-        bootstrap.localAddress(newSocketAddress());
+        addr = newSocketAddress();
+        bootstrap.localAddress(addr);
         bootstrap.option(ChannelOption.ALLOCATOR, allocator);
         bootstrap.childOption(ChannelOption.ALLOCATOR, allocator);
+        bootstrap2.remoteAddress(addr);
         bootstrap2.option(ChannelOption.ALLOCATOR, allocator);
     }
 
     protected SocketAddress newSocketAddress() {
-        return new InetSocketAddress(NetUtil.LOCALHOST, 0);
+        return new InetSocketAddress(
+                NetUtil.LOCALHOST, TestUtils.getFreePort());
     }
 }

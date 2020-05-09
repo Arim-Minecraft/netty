@@ -16,86 +16,64 @@
 package io.netty.buffer;
 
 
-import io.netty.util.ResourceLeakTracker;
-import io.netty.util.internal.ObjectUtil;
+import io.netty.util.ResourceLeak;
 
 import java.nio.ByteOrder;
 
-class SimpleLeakAwareCompositeByteBuf extends WrappedCompositeByteBuf {
+final class SimpleLeakAwareCompositeByteBuf extends WrappedCompositeByteBuf {
 
-    final ResourceLeakTracker<ByteBuf> leak;
+    private final ResourceLeak leak;
 
-    SimpleLeakAwareCompositeByteBuf(CompositeByteBuf wrapped, ResourceLeakTracker<ByteBuf> leak) {
+    SimpleLeakAwareCompositeByteBuf(CompositeByteBuf wrapped, ResourceLeak leak) {
         super(wrapped);
-        this.leak = ObjectUtil.checkNotNull(leak, "leak");
+        this.leak = leak;
     }
 
     @Override
     public boolean release() {
-        // Call unwrap() before just in case that super.release() will change the ByteBuf instance that is returned
-        // by unwrap().
-        ByteBuf unwrapped = unwrap();
-        if (super.release()) {
-            closeLeak(unwrapped);
-            return true;
+        boolean deallocated = super.release();
+        if (deallocated) {
+            leak.close();
         }
-        return false;
+        return deallocated;
     }
 
     @Override
     public boolean release(int decrement) {
-        // Call unwrap() before just in case that super.release() will change the ByteBuf instance that is returned
-        // by unwrap().
-        ByteBuf unwrapped = unwrap();
-        if (super.release(decrement)) {
-            closeLeak(unwrapped);
-            return true;
+        boolean deallocated = super.release(decrement);
+        if (deallocated) {
+            leak.close();
         }
-        return false;
-    }
-
-    private void closeLeak(ByteBuf trackedByteBuf) {
-        // Close the ResourceLeakTracker with the tracked ByteBuf as argument. This must be the same that was used when
-        // calling DefaultResourceLeak.track(...).
-        boolean closed = leak.close(trackedByteBuf);
-        assert closed;
+        return deallocated;
     }
 
     @Override
     public ByteBuf order(ByteOrder endianness) {
+        leak.record();
         if (order() == endianness) {
             return this;
         } else {
-            return newLeakAwareByteBuf(super.order(endianness));
+            return new SimpleLeakAwareByteBuf(super.order(endianness), leak);
         }
     }
 
     @Override
     public ByteBuf slice() {
-        return newLeakAwareByteBuf(super.slice());
+        return new SimpleLeakAwareByteBuf(super.slice(), leak);
     }
 
     @Override
     public ByteBuf slice(int index, int length) {
-        return newLeakAwareByteBuf(super.slice(index, length));
+        return new SimpleLeakAwareByteBuf(super.slice(index, length), leak);
     }
 
     @Override
     public ByteBuf duplicate() {
-        return newLeakAwareByteBuf(super.duplicate());
+        return new SimpleLeakAwareByteBuf(super.duplicate(), leak);
     }
 
     @Override
     public ByteBuf readSlice(int length) {
-        return newLeakAwareByteBuf(super.readSlice(length));
-    }
-
-    private SimpleLeakAwareByteBuf newLeakAwareByteBuf(ByteBuf wrapped) {
-        return newLeakAwareByteBuf(wrapped, unwrap(), leak);
-    }
-
-    protected SimpleLeakAwareByteBuf newLeakAwareByteBuf(
-            ByteBuf wrapped, ByteBuf trackedByteBuf, ResourceLeakTracker<ByteBuf> leakTracker) {
-        return new SimpleLeakAwareByteBuf(wrapped, trackedByteBuf, leakTracker);
+        return new SimpleLeakAwareByteBuf(super.readSlice(length), leak);
     }
 }

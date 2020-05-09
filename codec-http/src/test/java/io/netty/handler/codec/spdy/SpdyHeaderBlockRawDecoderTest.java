@@ -18,6 +18,7 @@ package io.netty.handler.codec.spdy;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.Unpooled;
+import io.netty.util.ReferenceCountUtil;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -51,19 +52,18 @@ public class SpdyHeaderBlockRawDecoderTest {
 
     @Test
     public void testEmptyHeaderBlock() throws Exception {
-        ByteBuf headerBlock = Unpooled.EMPTY_BUFFER;
+        ByteBuf headerBlock = ReferenceCountUtil.releaseLater(Unpooled.EMPTY_BUFFER);
         decoder.decode(ByteBufAllocator.DEFAULT, headerBlock, frame);
         decoder.endHeaderBlock(frame);
 
         assertFalse(headerBlock.isReadable());
         assertTrue(frame.isInvalid());
         assertEquals(0, frame.headers().names().size());
-        headerBlock.release();
     }
 
     @Test
     public void testZeroNameValuePairs() throws Exception {
-        ByteBuf headerBlock = Unpooled.buffer(4);
+        ByteBuf headerBlock = ReferenceCountUtil.releaseLater(Unpooled.buffer(4));
         headerBlock.writeInt(0);
         decoder.decode(ByteBufAllocator.DEFAULT, headerBlock, frame);
         decoder.endHeaderBlock(frame);
@@ -71,24 +71,22 @@ public class SpdyHeaderBlockRawDecoderTest {
         assertFalse(headerBlock.isReadable());
         assertFalse(frame.isInvalid());
         assertEquals(0, frame.headers().names().size());
-        headerBlock.release();
     }
 
     @Test
     public void testNegativeNameValuePairs() throws Exception {
-        ByteBuf headerBlock = Unpooled.buffer(4);
+        ByteBuf headerBlock = ReferenceCountUtil.releaseLater(Unpooled.buffer(4));
         headerBlock.writeInt(-1);
         decoder.decode(ByteBufAllocator.DEFAULT, headerBlock, frame);
 
         assertFalse(headerBlock.isReadable());
         assertTrue(frame.isInvalid());
         assertEquals(0, frame.headers().names().size());
-        headerBlock.release();
     }
 
     @Test
     public void testOneNameValuePair() throws Exception {
-        ByteBuf headerBlock = Unpooled.buffer(21);
+        ByteBuf headerBlock = ReferenceCountUtil.releaseLater(Unpooled.buffer(21));
         headerBlock.writeInt(1);
         headerBlock.writeInt(4);
         headerBlock.writeBytes(nameBytes);
@@ -103,12 +101,11 @@ public class SpdyHeaderBlockRawDecoderTest {
         assertTrue(frame.headers().contains(name));
         assertEquals(1, frame.headers().getAll(name).size());
         assertEquals(value, frame.headers().get(name));
-        headerBlock.release();
     }
 
     @Test
     public void testMissingNameLength() throws Exception {
-        ByteBuf headerBlock = Unpooled.buffer(4);
+        ByteBuf headerBlock = ReferenceCountUtil.releaseLater(Unpooled.buffer(4));
         headerBlock.writeInt(1);
         decoder.decode(ByteBufAllocator.DEFAULT, headerBlock, frame);
         decoder.endHeaderBlock(frame);
@@ -116,12 +113,11 @@ public class SpdyHeaderBlockRawDecoderTest {
         assertFalse(headerBlock.isReadable());
         assertTrue(frame.isInvalid());
         assertEquals(0, frame.headers().names().size());
-        headerBlock.release();
     }
 
     @Test
     public void testZeroNameLength() throws Exception {
-        ByteBuf headerBlock = Unpooled.buffer(8);
+        ByteBuf headerBlock = ReferenceCountUtil.releaseLater(Unpooled.buffer(8));
         headerBlock.writeInt(1);
         headerBlock.writeInt(0);
         decoder.decode(ByteBufAllocator.DEFAULT, headerBlock, frame);
@@ -129,12 +125,11 @@ public class SpdyHeaderBlockRawDecoderTest {
         assertFalse(headerBlock.isReadable());
         assertTrue(frame.isInvalid());
         assertEquals(0, frame.headers().names().size());
-        headerBlock.release();
     }
 
     @Test
     public void testNegativeNameLength() throws Exception {
-        ByteBuf headerBlock = Unpooled.buffer(8);
+        ByteBuf headerBlock = ReferenceCountUtil.releaseLater(Unpooled.buffer(8));
         headerBlock.writeInt(1);
         headerBlock.writeInt(-1);
         decoder.decode(ByteBufAllocator.DEFAULT, headerBlock, frame);
@@ -142,12 +137,11 @@ public class SpdyHeaderBlockRawDecoderTest {
         assertFalse(headerBlock.isReadable());
         assertTrue(frame.isInvalid());
         assertEquals(0, frame.headers().names().size());
-        headerBlock.release();
     }
 
     @Test
     public void testMissingName() throws Exception {
-        ByteBuf headerBlock = Unpooled.buffer(8);
+        ByteBuf headerBlock = ReferenceCountUtil.releaseLater(Unpooled.buffer(8));
         headerBlock.writeInt(1);
         headerBlock.writeInt(4);
         decoder.decode(ByteBufAllocator.DEFAULT, headerBlock, frame);
@@ -156,12 +150,11 @@ public class SpdyHeaderBlockRawDecoderTest {
         assertFalse(headerBlock.isReadable());
         assertTrue(frame.isInvalid());
         assertEquals(0, frame.headers().names().size());
-        headerBlock.release();
     }
 
     @Test
     public void testIllegalNameOnlyNull() throws Exception {
-        ByteBuf headerBlock = Unpooled.buffer(18);
+        ByteBuf headerBlock = ReferenceCountUtil.releaseLater(Unpooled.buffer(18));
         headerBlock.writeInt(1);
         headerBlock.writeInt(1);
         headerBlock.writeByte(0);
@@ -172,12 +165,11 @@ public class SpdyHeaderBlockRawDecoderTest {
         assertFalse(headerBlock.isReadable());
         assertTrue(frame.isInvalid());
         assertEquals(0, frame.headers().names().size());
-        headerBlock.release();
     }
 
     @Test
     public void testMissingValueLength() throws Exception {
-        ByteBuf headerBlock =  Unpooled.buffer(12);
+        ByteBuf headerBlock = ReferenceCountUtil.releaseLater(Unpooled.buffer(12));
         headerBlock.writeInt(1);
         headerBlock.writeInt(4);
         headerBlock.writeBytes(nameBytes);
@@ -187,12 +179,11 @@ public class SpdyHeaderBlockRawDecoderTest {
         assertFalse(headerBlock.isReadable());
         assertTrue(frame.isInvalid());
         assertEquals(0, frame.headers().names().size());
-        headerBlock.release();
     }
 
     @Test
     public void testZeroValueLength() throws Exception {
-        ByteBuf headerBlock = Unpooled.buffer(16);
+        ByteBuf headerBlock = ReferenceCountUtil.releaseLater(Unpooled.buffer(16));
         headerBlock.writeInt(1);
         headerBlock.writeInt(4);
         headerBlock.writeBytes(nameBytes);
@@ -206,12 +197,11 @@ public class SpdyHeaderBlockRawDecoderTest {
         assertTrue(frame.headers().contains(name));
         assertEquals(1, frame.headers().getAll(name).size());
         assertEquals("", frame.headers().get(name));
-        headerBlock.release();
     }
 
     @Test
     public void testNegativeValueLength() throws Exception {
-        ByteBuf headerBlock = Unpooled.buffer(16);
+        ByteBuf headerBlock = ReferenceCountUtil.releaseLater(Unpooled.buffer(16));
         headerBlock.writeInt(1);
         headerBlock.writeInt(4);
         headerBlock.writeBytes(nameBytes);
@@ -221,12 +211,11 @@ public class SpdyHeaderBlockRawDecoderTest {
         assertFalse(headerBlock.isReadable());
         assertTrue(frame.isInvalid());
         assertEquals(0, frame.headers().names().size());
-        headerBlock.release();
     }
 
     @Test
     public void testMissingValue() throws Exception {
-        ByteBuf headerBlock = Unpooled.buffer(16);
+        ByteBuf headerBlock = ReferenceCountUtil.releaseLater(Unpooled.buffer(16));
         headerBlock.writeInt(1);
         headerBlock.writeInt(4);
         headerBlock.writeBytes(nameBytes);
@@ -237,12 +226,11 @@ public class SpdyHeaderBlockRawDecoderTest {
         assertFalse(headerBlock.isReadable());
         assertTrue(frame.isInvalid());
         assertEquals(0, frame.headers().names().size());
-        headerBlock.release();
     }
 
     @Test
     public void testIllegalValueOnlyNull() throws Exception {
-        ByteBuf headerBlock = Unpooled.buffer(17);
+        ByteBuf headerBlock = ReferenceCountUtil.releaseLater(Unpooled.buffer(17));
         headerBlock.writeInt(1);
         headerBlock.writeInt(4);
         headerBlock.writeBytes(nameBytes);
@@ -253,12 +241,11 @@ public class SpdyHeaderBlockRawDecoderTest {
         assertFalse(headerBlock.isReadable());
         assertTrue(frame.isInvalid());
         assertEquals(0, frame.headers().names().size());
-        headerBlock.release();
     }
 
     @Test
     public void testIllegalValueStartsWithNull() throws Exception {
-        ByteBuf headerBlock = Unpooled.buffer(22);
+        ByteBuf headerBlock = ReferenceCountUtil.releaseLater(Unpooled.buffer(22));
         headerBlock.writeInt(1);
         headerBlock.writeInt(4);
         headerBlock.writeBytes(nameBytes);
@@ -270,12 +257,11 @@ public class SpdyHeaderBlockRawDecoderTest {
         assertFalse(headerBlock.isReadable());
         assertTrue(frame.isInvalid());
         assertEquals(0, frame.headers().names().size());
-        headerBlock.release();
     }
 
     @Test
     public void testIllegalValueEndsWithNull() throws Exception {
-        ByteBuf headerBlock = Unpooled.buffer(22);
+        ByteBuf headerBlock = ReferenceCountUtil.releaseLater(Unpooled.buffer(22));
         headerBlock.writeInt(1);
         headerBlock.writeInt(4);
         headerBlock.writeBytes(nameBytes);
@@ -287,12 +273,11 @@ public class SpdyHeaderBlockRawDecoderTest {
         assertFalse(headerBlock.isReadable());
         assertTrue(frame.isInvalid());
         assertEquals(0, frame.headers().names().size());
-        headerBlock.release();
     }
 
     @Test
     public void testMultipleValues() throws Exception {
-        ByteBuf headerBlock = Unpooled.buffer(27);
+        ByteBuf headerBlock = ReferenceCountUtil.releaseLater(Unpooled.buffer(27));
         headerBlock.writeInt(1);
         headerBlock.writeInt(4);
         headerBlock.writeBytes(nameBytes);
@@ -310,12 +295,11 @@ public class SpdyHeaderBlockRawDecoderTest {
         assertEquals(2, frame.headers().getAll(name).size());
         assertEquals(value, frame.headers().getAll(name).get(0));
         assertEquals(value, frame.headers().getAll(name).get(1));
-        headerBlock.release();
     }
 
     @Test
     public void testMultipleValuesEndsWithNull() throws Exception {
-        ByteBuf headerBlock = Unpooled.buffer(28);
+        ByteBuf headerBlock = ReferenceCountUtil.releaseLater(Unpooled.buffer(28));
         headerBlock.writeInt(1);
         headerBlock.writeInt(4);
         headerBlock.writeBytes(nameBytes);
@@ -332,12 +316,11 @@ public class SpdyHeaderBlockRawDecoderTest {
         assertTrue(frame.headers().contains(name));
         assertEquals(1, frame.headers().getAll(name).size());
         assertEquals(value, frame.headers().get(name));
-        headerBlock.release();
     }
 
     @Test
     public void testIllegalValueMultipleNulls() throws Exception {
-        ByteBuf headerBlock = Unpooled.buffer(28);
+        ByteBuf headerBlock = ReferenceCountUtil.releaseLater(Unpooled.buffer(28));
         headerBlock.writeInt(1);
         headerBlock.writeInt(4);
         headerBlock.writeBytes(nameBytes);
@@ -352,12 +335,11 @@ public class SpdyHeaderBlockRawDecoderTest {
         assertFalse(headerBlock.isReadable());
         assertTrue(frame.isInvalid());
         assertEquals(0, frame.headers().names().size());
-        headerBlock.release();
     }
 
     @Test
     public void testMissingNextNameValuePair() throws Exception {
-        ByteBuf headerBlock = Unpooled.buffer(21);
+        ByteBuf headerBlock = ReferenceCountUtil.releaseLater(Unpooled.buffer(21));
         headerBlock.writeInt(2);
         headerBlock.writeInt(4);
         headerBlock.writeBytes(nameBytes);
@@ -372,12 +354,11 @@ public class SpdyHeaderBlockRawDecoderTest {
         assertTrue(frame.headers().contains(name));
         assertEquals(1, frame.headers().getAll(name).size());
         assertEquals(value, frame.headers().get(name));
-        headerBlock.release();
     }
 
     @Test
     public void testMultipleNames() throws Exception {
-        ByteBuf headerBlock = Unpooled.buffer(38);
+        ByteBuf headerBlock = ReferenceCountUtil.releaseLater(Unpooled.buffer(38));
         headerBlock.writeInt(2);
         headerBlock.writeInt(4);
         headerBlock.writeBytes(nameBytes);
@@ -395,12 +376,11 @@ public class SpdyHeaderBlockRawDecoderTest {
         assertTrue(frame.headers().contains(name));
         assertEquals(1, frame.headers().getAll(name).size());
         assertEquals(value, frame.headers().get(name));
-        headerBlock.release();
     }
 
     @Test
     public void testExtraData() throws Exception {
-        ByteBuf headerBlock = Unpooled.buffer(22);
+        ByteBuf headerBlock = ReferenceCountUtil.releaseLater(Unpooled.buffer(22));
         headerBlock.writeInt(1);
         headerBlock.writeInt(4);
         headerBlock.writeBytes(nameBytes);
@@ -415,12 +395,11 @@ public class SpdyHeaderBlockRawDecoderTest {
         assertTrue(frame.headers().contains(name));
         assertEquals(1, frame.headers().getAll(name).size());
         assertEquals(value, frame.headers().get(name));
-        headerBlock.release();
     }
 
     @Test
     public void testMultipleDecodes() throws Exception {
-        ByteBuf headerBlock = Unpooled.buffer(21);
+        ByteBuf headerBlock = ReferenceCountUtil.releaseLater(Unpooled.buffer(21));
         headerBlock.writeInt(1);
         headerBlock.writeInt(4);
         headerBlock.writeBytes(nameBytes);
@@ -440,19 +419,18 @@ public class SpdyHeaderBlockRawDecoderTest {
         assertTrue(frame.headers().contains(name));
         assertEquals(1, frame.headers().getAll(name).size());
         assertEquals(value, frame.headers().get(name));
-        headerBlock.release();
     }
 
     @Test
     public void testContinueAfterInvalidHeaders() throws Exception {
-        ByteBuf numHeaders = Unpooled.buffer(4);
+        ByteBuf numHeaders = ReferenceCountUtil.releaseLater(Unpooled.buffer(4));
         numHeaders.writeInt(1);
 
-        ByteBuf nameBlock = Unpooled.buffer(8);
+        ByteBuf nameBlock = ReferenceCountUtil.releaseLater(Unpooled.buffer(8));
         nameBlock.writeInt(4);
         nameBlock.writeBytes(nameBytes);
 
-        ByteBuf valueBlock = Unpooled.buffer(9);
+        ByteBuf valueBlock = ReferenceCountUtil.releaseLater(Unpooled.buffer(9));
         valueBlock.writeInt(5);
         valueBlock.writeBytes(valueBytes);
 
@@ -469,14 +447,11 @@ public class SpdyHeaderBlockRawDecoderTest {
         assertTrue(frame.headers().contains(name));
         assertEquals(1, frame.headers().getAll(name).size());
         assertEquals(value, frame.headers().get(name));
-        numHeaders.release();
-        nameBlock.release();
-        valueBlock.release();
     }
 
     @Test
     public void testTruncatedHeaderName() throws Exception {
-        ByteBuf headerBlock = Unpooled.buffer(maxHeaderSize + 18);
+        ByteBuf headerBlock = ReferenceCountUtil.releaseLater(Unpooled.buffer(maxHeaderSize + 18));
         headerBlock.writeInt(1);
         headerBlock.writeInt(maxHeaderSize + 1);
         for (int i = 0; i < maxHeaderSize + 1; i++) {
@@ -491,12 +466,11 @@ public class SpdyHeaderBlockRawDecoderTest {
         assertTrue(frame.isTruncated());
         assertFalse(frame.isInvalid());
         assertEquals(0, frame.headers().names().size());
-        headerBlock.release();
     }
 
     @Test
     public void testTruncatedHeaderValue() throws Exception {
-        ByteBuf headerBlock = Unpooled.buffer(maxHeaderSize + 13);
+        ByteBuf headerBlock = ReferenceCountUtil.releaseLater(Unpooled.buffer(maxHeaderSize + 13));
         headerBlock.writeInt(1);
         headerBlock.writeInt(4);
         headerBlock.writeBytes(nameBytes);
@@ -511,6 +485,5 @@ public class SpdyHeaderBlockRawDecoderTest {
         assertTrue(frame.isTruncated());
         assertFalse(frame.isInvalid());
         assertEquals(0, frame.headers().names().size());
-        headerBlock.release();
     }
 }

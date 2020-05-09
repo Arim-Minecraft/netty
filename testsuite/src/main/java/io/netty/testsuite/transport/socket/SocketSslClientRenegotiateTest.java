@@ -40,6 +40,7 @@ import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
 
+import javax.net.ssl.SSLHandshakeException;
 import java.io.File;
 import java.nio.channels.ClosedChannelException;
 import java.security.cert.CertificateException;
@@ -48,11 +49,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
-import javax.net.ssl.SSLHandshakeException;
-
-import static org.junit.Assert.assertSame;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
+import static org.junit.Assert.*;
 
 @RunWith(Parameterized.class)
 public class SocketSslClientRenegotiateTest extends AbstractSocketTest {
@@ -82,6 +79,7 @@ public class SocketSslClientRenegotiateTest extends AbstractSocketTest {
         boolean hasOpenSsl = OpenSsl.isAvailable();
         if (hasOpenSsl) {
             OpenSslServerContext context = new OpenSslServerContext(CERT_FILE, KEY_FILE);
+            context.setRejectRemoteInitiatedRenegotiation(true);
             serverContexts.add(context);
         } else {
             logger.warn("OpenSSL is unavailable and thus will not be tested.", OpenSsl.unavailabilityCause());
@@ -123,8 +121,6 @@ public class SocketSslClientRenegotiateTest extends AbstractSocketTest {
 
     @Test(timeout = 30000)
     public void testSslRenegotiationRejected() throws Throwable {
-        // BoringSSL does not support renegotiation intentionally.
-        Assume.assumeFalse("BoringSSL".equals(OpenSsl.versionString()));
         Assume.assumeTrue(OpenSsl.isAvailable());
         run();
     }
@@ -157,7 +153,7 @@ public class SocketSslClientRenegotiateTest extends AbstractSocketTest {
         });
 
         Channel sc = sb.bind().sync().channel();
-        cb.connect(sc.localAddress()).sync();
+        cb.connect().sync();
 
         Future<Channel> clientHandshakeFuture = clientSslHandler.handshakeFuture();
         clientHandshakeFuture.sync();

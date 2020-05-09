@@ -33,7 +33,6 @@ abstract class PooledByteBuf<T> extends AbstractReferenceCountedByteBuf {
     int maxLength;
     PoolThreadCache cache;
     private ByteBuffer tmpNioBuf;
-    private ByteBufAllocator allocator;
 
     protected PooledByteBuf(Recycler.Handle recyclerHandle, int maxCapacity) {
         super(maxCapacity);
@@ -41,26 +40,29 @@ abstract class PooledByteBuf<T> extends AbstractReferenceCountedByteBuf {
     }
 
     void init(PoolChunk<T> chunk, long handle, int offset, int length, int maxLength, PoolThreadCache cache) {
-        init0(chunk, handle, offset, length, maxLength, cache);
-    }
-
-    void initUnpooled(PoolChunk<T> chunk, int length) {
-        init0(chunk, 0, chunk.offset, length, length, null);
-    }
-
-    private void init0(PoolChunk<T> chunk, long handle, int offset, int length, int maxLength, PoolThreadCache cache) {
         assert handle >= 0;
         assert chunk != null;
 
         this.chunk = chunk;
-        memory = chunk.memory;
-        allocator = chunk.arena.parent;
-        this.cache = cache;
         this.handle = handle;
+        memory = chunk.memory;
         this.offset = offset;
         this.length = length;
         this.maxLength = maxLength;
         tmpNioBuf = null;
+        this.cache = cache;
+    }
+
+    void initUnpooled(PoolChunk<T> chunk, int length) {
+        assert chunk != null;
+
+        this.chunk = chunk;
+        handle = 0;
+        memory = chunk.memory;
+        offset = 0;
+        this.length = maxLength = length;
+        tmpNioBuf = null;
+        cache = null;
     }
 
     /**
@@ -80,7 +82,7 @@ abstract class PooledByteBuf<T> extends AbstractReferenceCountedByteBuf {
 
     @Override
     public final ByteBuf capacity(int newCapacity) {
-        checkNewCapacity(newCapacity);
+        ensureAccessible();
 
         // If the request capacity does not require reallocation, just update the length of the memory.
         if (chunk.unpooled) {
@@ -119,7 +121,7 @@ abstract class PooledByteBuf<T> extends AbstractReferenceCountedByteBuf {
 
     @Override
     public final ByteBufAllocator alloc() {
-        return allocator;
+        return chunk.arena.parent;
     }
 
     @Override
@@ -148,9 +150,7 @@ abstract class PooledByteBuf<T> extends AbstractReferenceCountedByteBuf {
             final long handle = this.handle;
             this.handle = -1;
             memory = null;
-            tmpNioBuf = null;
             chunk.arena.free(chunk, handle, maxLength, cache);
-            chunk = null;
             recycle();
         }
     }

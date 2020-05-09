@@ -94,17 +94,6 @@ public final class HttpClientCodec
         this.failOnMissingResponse = failOnMissingResponse;
     }
 
-    /**
-     * Creates a new instance with the specified decoder options.
-     */
-    public HttpClientCodec(
-            int maxInitialLineLength, int maxHeaderSize, int maxChunkSize, boolean failOnMissingResponse,
-            boolean validateHeaders, int initialBufferSize) {
-        init(new Decoder(maxInitialLineLength, maxHeaderSize, maxChunkSize, validateHeaders, initialBufferSize),
-             new Encoder());
-        this.failOnMissingResponse = failOnMissingResponse;
-    }
-
     private final class Encoder extends HttpRequestEncoder {
 
         @Override
@@ -129,11 +118,6 @@ public final class HttpClientCodec
     private final class Decoder extends HttpResponseDecoder {
         Decoder(int maxInitialLineLength, int maxHeaderSize, int maxChunkSize, boolean validateHeaders) {
             super(maxInitialLineLength, maxHeaderSize, maxChunkSize, validateHeaders);
-        }
-
-        Decoder(int maxInitialLineLength, int maxHeaderSize, int maxChunkSize, boolean validateHeaders,
-                int initialBufferSize) {
-            super(maxInitialLineLength, maxHeaderSize, maxChunkSize, validateHeaders, initialBufferSize);
         }
 
         @Override
@@ -173,10 +157,9 @@ public final class HttpClientCodec
         @Override
         protected boolean isContentAlwaysEmpty(HttpMessage msg) {
             final int statusCode = ((HttpResponse) msg).getStatus().code();
-            if (statusCode == 100 || statusCode == 101) {
-                // 100-continue and 101 switching protocols response should be excluded from paired comparison.
-                // Just delegate to super method which has all the needed handling.
-                return super.isContentAlwaysEmpty(msg);
+            if (statusCode == 100) {
+                // 100-continue response should be excluded from paired comparison.
+                return true;
             }
 
             // Get the getMethod of the HTTP request that corresponds to the
@@ -187,7 +170,7 @@ public final class HttpClientCodec
             switch (firstChar) {
             case 'H':
                 // According to 4.3, RFC2616:
-                // All responses to the HEAD request method MUST NOT include a
+                // All responses to the HEAD request getMethod MUST NOT include a
                 // message-body, even though the presence of entity-header fields
                 // might lead one to believe they do.
                 if (HttpMethod.HEAD.equals(method)) {

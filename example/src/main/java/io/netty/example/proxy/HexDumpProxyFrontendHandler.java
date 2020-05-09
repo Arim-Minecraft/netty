@@ -29,9 +29,7 @@ public class HexDumpProxyFrontendHandler extends ChannelInboundHandlerAdapter {
     private final String remoteHost;
     private final int remotePort;
 
-    // As we use inboundChannel.eventLoop() when building the Bootstrap this does not need to be volatile as
-    // the outboundChannel will use the same EventLoop (and therefore Thread) as the inboundChannel.
-    private Channel outboundChannel;
+    private volatile Channel outboundChannel;
 
     public HexDumpProxyFrontendHandler(String remoteHost, int remotePort) {
         this.remoteHost = remoteHost;

@@ -21,10 +21,7 @@ import static io.netty.util.internal.ObjectUtil.checkNotNull;
 
 /**
  * OpenSSL {@link ApplicationProtocolNegotiator} for ALPN and NPN.
- *
- * @deprecated use {@link ApplicationProtocolConfig}.
  */
-@Deprecated
 public final class OpenSslDefaultApplicationProtocolNegotiator implements OpenSslApplicationProtocolNegotiator {
     private final ApplicationProtocolConfig config;
     public OpenSslDefaultApplicationProtocolNegotiator(ApplicationProtocolConfig config) {

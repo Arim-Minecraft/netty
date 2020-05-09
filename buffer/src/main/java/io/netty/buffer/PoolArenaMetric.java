@@ -127,9 +127,4 @@ public interface PoolArenaMetric {
      * Return the number of currently active huge allocations.
      */
     long numActiveHugeAllocations();
-
-    /**
-     * Return the number of active bytes that are currently allocated by the arena.
-     */
-    long numActiveBytes();
 }

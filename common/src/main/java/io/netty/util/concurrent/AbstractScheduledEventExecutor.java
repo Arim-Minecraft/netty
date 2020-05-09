@@ -16,6 +16,7 @@
 package io.netty.util.concurrent;
 
 import io.netty.util.internal.ObjectUtil;
+import io.netty.util.internal.OneTimeTask;
 
 import java.util.PriorityQueue;
 import java.util.Queue;
@@ -68,7 +69,7 @@ public abstract class AbstractScheduledEventExecutor extends AbstractEventExecut
     }
 
     /**
-     * @see #pollScheduledTask(long)
+     * @see {@link #pollScheduledTask(long)}
      */
     protected final Runnable pollScheduledTask() {
         return pollScheduledTask(nanoTime());
@@ -124,11 +125,12 @@ public abstract class AbstractScheduledEventExecutor extends AbstractEventExecut
     }
 
     @Override
-    public ScheduledFuture<?> schedule(Runnable command, long delay, TimeUnit unit) {
+    public  ScheduledFuture<?> schedule(Runnable command, long delay, TimeUnit unit) {
         ObjectUtil.checkNotNull(command, "command");
         ObjectUtil.checkNotNull(unit, "unit");
         if (delay < 0) {
-            delay = 0;
+            throw new IllegalArgumentException(
+                    String.format("delay: %d (expected: >= 0)", delay));
         }
         return schedule(new ScheduledFutureTask<Void>(
                 this, command, null, ScheduledFutureTask.deadlineNanos(unit.toNanos(delay))));
@@ -139,7 +141,8 @@ public abstract class AbstractScheduledEventExecutor extends AbstractEventExecut
         ObjectUtil.checkNotNull(callable, "callable");
         ObjectUtil.checkNotNull(unit, "unit");
         if (delay < 0) {
-            delay = 0;
+            throw new IllegalArgumentException(
+                    String.format("delay: %d (expected: >= 0)", delay));
         }
         return schedule(new ScheduledFutureTask<V>(
                 this, callable, ScheduledFutureTask.deadlineNanos(unit.toNanos(delay))));
@@ -185,7 +188,7 @@ public abstract class AbstractScheduledEventExecutor extends AbstractEventExecut
         if (inEventLoop()) {
             scheduledTaskQueue().add(task);
         } else {
-            execute(new Runnable() {
+            execute(new OneTimeTask() {
                 @Override
                 public void run() {
                     scheduledTaskQueue().add(task);
@@ -200,7 +203,7 @@ public abstract class AbstractScheduledEventExecutor extends AbstractEventExecut
         if (inEventLoop()) {
             scheduledTaskQueue().remove(task);
         } else {
-            execute(new Runnable() {
+            execute(new OneTimeTask() {
                 @Override
                 public void run() {
                     removeScheduled(task);

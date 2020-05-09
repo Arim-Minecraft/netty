@@ -27,19 +27,19 @@ import java.nio.channels.GatheringByteChannel;
 import java.nio.channels.ScatteringByteChannel;
 
 /**
- * A NIO {@link ByteBuffer} based buffer. It is recommended to use
- * {@link UnpooledByteBufAllocator#directBuffer(int, int)}, {@link Unpooled#directBuffer(int)} and
- * {@link Unpooled#wrappedBuffer(ByteBuffer)} instead of calling the constructor explicitly.}
+ * A NIO {@link ByteBuffer} based buffer.  It is recommended to use {@link Unpooled#directBuffer(int)}
+ * and {@link Unpooled#wrappedBuffer(ByteBuffer)} instead of calling the
+ * constructor explicitly.
  */
 public class UnpooledUnsafeDirectByteBuf extends AbstractReferenceCountedByteBuf {
 
     private final ByteBufAllocator alloc;
 
+    private long memoryAddress;
+    private ByteBuffer buffer;
     private ByteBuffer tmpNioBuf;
     private int capacity;
     private boolean doNotFree;
-    ByteBuffer buffer;
-    long memoryAddress;
 
     /**
      * Creates a new direct buffer.
@@ -47,7 +47,7 @@ public class UnpooledUnsafeDirectByteBuf extends AbstractReferenceCountedByteBuf
      * @param initialCapacity the initial capacity of the underlying direct buffer
      * @param maxCapacity     the maximum capacity of the underlying direct buffer
      */
-    public UnpooledUnsafeDirectByteBuf(ByteBufAllocator alloc, int initialCapacity, int maxCapacity) {
+    protected UnpooledUnsafeDirectByteBuf(ByteBufAllocator alloc, int initialCapacity, int maxCapacity) {
         super(maxCapacity);
         if (alloc == null) {
             throw new NullPointerException("alloc");
@@ -64,7 +64,7 @@ public class UnpooledUnsafeDirectByteBuf extends AbstractReferenceCountedByteBuf
         }
 
         this.alloc = alloc;
-        setByteBuffer(allocateDirect(initialCapacity), false);
+        setByteBuffer(allocateDirect(initialCapacity));
     }
 
     /**
@@ -73,19 +73,6 @@ public class UnpooledUnsafeDirectByteBuf extends AbstractReferenceCountedByteBuf
      * @param maxCapacity the maximum capacity of the underlying direct buffer
      */
     protected UnpooledUnsafeDirectByteBuf(ByteBufAllocator alloc, ByteBuffer initialBuffer, int maxCapacity) {
-        // We never try to free the buffer if it was provided by the end-user as we not know if this is an duplicate or
-        // an slice. This is done to prevent an IllegalArgumentException when using Java9 as Unsafe.invokeCleaner(...)
-        // will check if the given buffer is either an duplicate or slice and in this case throw an
-        // IllegalArgumentException.
-        //
-        // See http://hg.openjdk.java.net/jdk9/hs-demo/jdk/file/0d2ab72ba600/src/jdk.unsupported/share/classes/
-        // sun/misc/Unsafe.java#l1250
-        //
-        // We also call slice() explicitly here to preserve behaviour with previous netty releases.
-        this(alloc, initialBuffer.slice(), maxCapacity, false);
-    }
-
-    UnpooledUnsafeDirectByteBuf(ByteBufAllocator alloc, ByteBuffer initialBuffer, int maxCapacity, boolean doFree) {
         super(maxCapacity);
         if (alloc == null) {
             throw new NullPointerException("alloc");
@@ -107,8 +94,8 @@ public class UnpooledUnsafeDirectByteBuf extends AbstractReferenceCountedByteBuf
         }
 
         this.alloc = alloc;
-        doNotFree = !doFree;
-        setByteBuffer(initialBuffer.order(ByteOrder.BIG_ENDIAN), false);
+        doNotFree = true;
+        setByteBuffer(initialBuffer.slice().order(ByteOrder.BIG_ENDIAN));
         writerIndex(initialCapacity);
     }
 
@@ -126,17 +113,16 @@ public class UnpooledUnsafeDirectByteBuf extends AbstractReferenceCountedByteBuf
         PlatformDependent.freeDirectBuffer(buffer);
     }
 
-    final void setByteBuffer(ByteBuffer buffer, boolean tryFree) {
-        if (tryFree) {
-            ByteBuffer oldBuffer = this.buffer;
-            if (oldBuffer != null) {
-                if (doNotFree) {
-                    doNotFree = false;
-                } else {
-                    freeDirect(oldBuffer);
-                }
+    private void setByteBuffer(ByteBuffer buffer) {
+        ByteBuffer oldBuffer = this.buffer;
+        if (oldBuffer != null) {
+            if (doNotFree) {
+                doNotFree = false;
+            } else {
+                freeDirect(oldBuffer);
             }
         }
+
         this.buffer = buffer;
         memoryAddress = PlatformDependent.directBufferAddress(buffer);
         tmpNioBuf = null;
@@ -155,7 +141,10 @@ public class UnpooledUnsafeDirectByteBuf extends AbstractReferenceCountedByteBuf
 
     @Override
     public ByteBuf capacity(int newCapacity) {
-        checkNewCapacity(newCapacity);
+        ensureAccessible();
+        if (newCapacity < 0 || newCapacity > maxCapacity()) {
+            throw new IllegalArgumentException("newCapacity: " + newCapacity);
+        }
 
         int readerIndex = readerIndex();
         int writerIndex = writerIndex();
@@ -168,7 +157,7 @@ public class UnpooledUnsafeDirectByteBuf extends AbstractReferenceCountedByteBuf
             newBuffer.position(0).limit(oldBuffer.capacity());
             newBuffer.put(oldBuffer);
             newBuffer.clear();
-            setByteBuffer(newBuffer, true);
+            setByteBuffer(newBuffer);
         } else if (newCapacity < oldCapacity) {
             ByteBuffer oldBuffer = buffer;
             ByteBuffer newBuffer = allocateDirect(newCapacity);
@@ -183,7 +172,7 @@ public class UnpooledUnsafeDirectByteBuf extends AbstractReferenceCountedByteBuf
             } else {
                 setIndex(newCapacity, newCapacity);
             }
-            setByteBuffer(newBuffer, true);
+            setByteBuffer(newBuffer);
         }
         return this;
     }
@@ -436,21 +425,5 @@ public class UnpooledUnsafeDirectByteBuf extends AbstractReferenceCountedByteBuf
             return new UnsafeDirectSwappedByteBuf(this);
         }
         return super.newSwappedByteBuf();
-    }
-
-    @Override
-    public ByteBuf setZero(int index, int length) {
-        checkIndex(index, length);
-        UnsafeByteBufUtil.setZero(addr(index), length);
-        return this;
-    }
-
-    @Override
-    public ByteBuf writeZero(int length) {
-        ensureWritable(length);
-        int wIndex = writerIndex;
-        UnsafeByteBufUtil.setZero(addr(wIndex), length);
-        writerIndex = wIndex + length;
-        return this;
     }
 }

@@ -15,8 +15,6 @@
  */
 package io.netty.handler.codec.http;
 
-import io.netty.handler.codec.http.cookie.ServerCookieDecoder;
-
 import java.util.Collection;
 import java.util.List;
 
@@ -26,12 +24,12 @@ import java.util.List;
  *
  * As Netty's Cookie merges Expires and MaxAge into one single field, only Max-Age field is sent.
  *
- * Note that multiple cookies must be sent as separate "Set-Cookie" headers.
+ * Note that multiple cookies are supposed to be sent at once in a single "Set-Cookie" header.
  *
  * <pre>
  * // Example
- * {@link HttpResponse} res = ...;
- * res.setHeader("Set-Cookie", {@link ServerCookieEncoder}.encode("JSESSIONID", "1234"));
+ * {@link HttpRequest} req = ...;
+ * res.setHeader("Cookie", {@link ServerCookieEncoder}.encode("JSESSIONID", "1234"));
  * </pre>
  *
  * @see ServerCookieDecoder

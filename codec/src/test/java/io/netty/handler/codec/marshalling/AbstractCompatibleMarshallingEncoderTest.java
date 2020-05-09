@@ -28,7 +28,7 @@ import java.io.IOException;
 
 import static org.junit.Assert.*;
 
-public abstract class AbstractCompatibleMarshallingEncoderTest extends AbstractMarshallingTest {
+public abstract class AbstractCompatibleMarshallingEncoderTest {
 
     @Test
     public void testMarshalling() throws IOException, ClassNotFoundException {

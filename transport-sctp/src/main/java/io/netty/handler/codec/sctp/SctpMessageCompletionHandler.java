@@ -43,8 +43,10 @@ public class SctpMessageCompletionHandler extends MessageToMessageDecoder<SctpMe
         final boolean isComplete = msg.isComplete();
         final boolean isUnordered = msg.isUnordered();
 
-        ByteBuf frag = fragments.remove(streamIdentifier);
-        if (frag == null) {
+        ByteBuf frag;
+        if (fragments.containsKey(streamIdentifier)) {
+            frag = fragments.remove(streamIdentifier);
+        } else {
             frag = Unpooled.EMPTY_BUFFER;
         }
 
@@ -56,6 +58,7 @@ public class SctpMessageCompletionHandler extends MessageToMessageDecoder<SctpMe
             fragments.put(streamIdentifier, Unpooled.wrappedBuffer(frag, byteBuf));
         } else if (isComplete && frag.isReadable()) {
             //last message to complete
+            fragments.remove(streamIdentifier);
             SctpMessage assembledMsg = new SctpMessage(
                     protocolIdentifier,
                     streamIdentifier,

@@ -15,17 +15,15 @@
  */
 package io.netty.handler.ssl;
 
-import io.netty.internal.tcnative.SSL;
-import io.netty.internal.tcnative.SSLContext;
-
-import java.util.concurrent.locks.Lock;
+import org.apache.tomcat.jni.SSL;
+import org.apache.tomcat.jni.SSLContext;
 
 
 /**
  * {@link OpenSslSessionContext} implementation which offers extra methods which are only useful for the server-side.
  */
 public final class OpenSslServerSessionContext extends OpenSslSessionContext {
-    OpenSslServerSessionContext(ReferenceCountedOpenSslContext context) {
+    OpenSslServerSessionContext(long context) {
         super(context);
     }
 
@@ -34,24 +32,12 @@ public final class OpenSslServerSessionContext extends OpenSslSessionContext {
         if (seconds < 0) {
             throw new IllegalArgumentException();
         }
-        Lock writerLock = context.ctxLock.writeLock();
-        writerLock.lock();
-        try {
-            SSLContext.setSessionCacheTimeout(context.ctx, seconds);
-        } finally {
-            writerLock.unlock();
-        }
+        SSLContext.setSessionCacheTimeout(context, seconds);
     }
 
     @Override
     public int getSessionTimeout() {
-        Lock readerLock = context.ctxLock.readLock();
-        readerLock.lock();
-        try {
-            return (int) SSLContext.getSessionCacheTimeout(context.ctx);
-        } finally {
-            readerLock.unlock();
-        }
+        return (int) SSLContext.getSessionCacheTimeout(context);
     }
 
     @Override
@@ -59,48 +45,23 @@ public final class OpenSslServerSessionContext extends OpenSslSessionContext {
         if (size < 0) {
             throw new IllegalArgumentException();
         }
-        Lock writerLock = context.ctxLock.writeLock();
-        writerLock.lock();
-        try {
-            SSLContext.setSessionCacheSize(context.ctx, size);
-        } finally {
-            writerLock.unlock();
-        }
+        SSLContext.setSessionCacheSize(context, size);
     }
 
     @Override
     public int getSessionCacheSize() {
-        Lock readerLock = context.ctxLock.readLock();
-        readerLock.lock();
-        try {
-            return (int) SSLContext.getSessionCacheSize(context.ctx);
-        } finally {
-            readerLock.unlock();
-        }
+        return (int) SSLContext.getSessionCacheSize(context);
     }
 
     @Override
     public void setSessionCacheEnabled(boolean enabled) {
         long mode = enabled ? SSL.SSL_SESS_CACHE_SERVER : SSL.SSL_SESS_CACHE_OFF;
-
-        Lock writerLock = context.ctxLock.writeLock();
-        writerLock.lock();
-        try {
-            SSLContext.setSessionCacheMode(context.ctx, mode);
-        } finally {
-            writerLock.unlock();
-        }
+        SSLContext.setSessionCacheMode(context, mode);
     }
 
     @Override
     public boolean isSessionCacheEnabled() {
-        Lock readerLock = context.ctxLock.readLock();
-        readerLock.lock();
-        try {
-            return SSLContext.getSessionCacheMode(context.ctx) == SSL.SSL_SESS_CACHE_SERVER;
-        } finally {
-            readerLock.unlock();
-        }
+        return SSLContext.getSessionCacheMode(context) == SSL.SSL_SESS_CACHE_SERVER;
     }
 
     /**
@@ -113,12 +74,6 @@ public final class OpenSslServerSessionContext extends OpenSslSessionContext {
      * @return {@code true} if success, {@code false} otherwise.
      */
     public boolean setSessionIdContext(byte[] sidCtx) {
-        Lock writerLock = context.ctxLock.writeLock();
-        writerLock.lock();
-        try {
-            return SSLContext.setSessionIdContext(context.ctx, sidCtx);
-        } finally {
-            writerLock.unlock();
-        }
+        return SSLContext.setSessionIdContext(context, sidCtx);
     }
 }

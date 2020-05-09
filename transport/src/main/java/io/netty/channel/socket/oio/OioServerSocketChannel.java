@@ -20,7 +20,6 @@ import io.netty.channel.ChannelMetadata;
 import io.netty.channel.ChannelOutboundBuffer;
 import io.netty.channel.oio.AbstractOioMessageChannel;
 import io.netty.channel.socket.ServerSocketChannel;
-import io.netty.util.internal.SocketUtils;
 import io.netty.util.internal.logging.InternalLogger;
 import io.netty.util.internal.logging.InternalLoggerFactory;
 
@@ -132,7 +131,7 @@ public class OioServerSocketChannel extends AbstractOioMessageChannel
 
     @Override
     protected SocketAddress localAddress0() {
-        return SocketUtils.localSocketAddress(socket);
+        return socket.getLocalSocketAddress();
     }
 
     @Override

@@ -22,13 +22,12 @@ import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.util.CharsetUtil;
 import io.netty.util.ReferenceCountUtil;
 import io.netty.util.internal.EmptyArrays;
-import io.netty.util.internal.PlatformDependent;
+import io.netty.util.internal.ThreadLocalRandom;
 import org.junit.Test;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
-import java.util.Random;
 import java.util.zip.DeflaterOutputStream;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
@@ -83,7 +82,7 @@ public abstract class ZlibTest {
             "</body></html>").getBytes(CharsetUtil.UTF_8);
 
     static {
-        Random rand = PlatformDependent.threadLocalRandom();
+        ThreadLocalRandom rand = ThreadLocalRandom.current();
         rand.nextBytes(BYTES_SMALL);
         rand.nextBytes(BYTES_LARGE);
     }
@@ -300,19 +299,16 @@ public abstract class ZlibTest {
         }
 
         ByteBuf decoded = Unpooled.buffer();
-        GZIPInputStream stream = new GZIPInputStream(new ByteBufInputStream(encoded, true));
-        try {
-            byte[] buf = new byte[8192];
-            for (;;) {
-                int readBytes = stream.read(buf);
-                if (readBytes < 0) {
-                    break;
-                }
-                decoded.writeBytes(buf, 0, readBytes);
+        GZIPInputStream stream = new GZIPInputStream(new ByteBufInputStream(encoded));
+        byte[] buf = new byte[8192];
+        for (;;) {
+            int readBytes = stream.read(buf);
+            if (readBytes < 0) {
+                break;
             }
-        } finally {
-            stream.close();
+            decoded.writeBytes(buf, 0, readBytes);
         }
+        stream.close();
 
         if (data != null) {
             assertEquals(Unpooled.wrappedBuffer(data), decoded);
@@ -320,6 +316,7 @@ public abstract class ZlibTest {
             assertFalse(decoded.isReadable());
         }
 
+        encoded.release();
         decoded.release();
     }
 

@@ -24,7 +24,8 @@ import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.DatagramPacket;
 import io.netty.channel.socket.nio.NioDatagramChannel;
 import io.netty.util.CharsetUtil;
-import io.netty.util.internal.SocketUtils;
+
+import java.net.InetSocketAddress;
 
 /**
  * A UDP broadcast client that asks for a quote of the moment (QOTM) to {@link QuoteOfTheMomentServer}.
@@ -51,7 +52,7 @@ public final class QuoteOfTheMomentClient {
             // Broadcast the QOTM request to port 8080.
             ch.writeAndFlush(new DatagramPacket(
                     Unpooled.copiedBuffer("QOTM?", CharsetUtil.UTF_8),
-                    SocketUtils.socketAddress("255.255.255.255", PORT))).sync();
+                    new InetSocketAddress("255.255.255.255", PORT))).sync();
 
             // QuoteOfTheMomentClientHandler will close the DatagramChannel when a
             // response is received.  If the channel is not closed within 5 seconds,

@@ -18,8 +18,6 @@ package io.netty.util;
 
 import org.junit.Test;
 
-import java.util.Map;
-
 import static org.junit.Assert.assertEquals;
 
 @SuppressWarnings("deprecation")
@@ -107,22 +105,22 @@ public class DomainNameMappingTest {
 
     @Test(expected = NullPointerException.class)
     public void testNullDefaultValue() {
-        new DomainNameMappingBuilder<String>(null);
+        new DomainMappingBuilder<String>(null);
     }
 
     @Test(expected = NullPointerException.class)
     public void testNullDomainNamePatternsAreForbidden() {
-        new DomainNameMappingBuilder<String>("NotFound").add(null, "Some value");
+        new DomainMappingBuilder<String>("NotFound").add(null, "Some value");
     }
 
     @Test(expected = NullPointerException.class)
     public void testNullValuesAreForbidden() {
-        new DomainNameMappingBuilder<String>("NotFound").add("Some key", null);
+        new DomainMappingBuilder<String>("NotFound").add("Some key", null);
     }
 
     @Test
     public void testDefaultValue() {
-        DomainNameMapping<String> mapping = new DomainNameMappingBuilder<String>("NotFound")
+        DomainNameMapping<String> mapping = new DomainMappingBuilder<String>("NotFound")
             .add("*.netty.io", "Netty")
             .build();
 
@@ -131,7 +129,7 @@ public class DomainNameMappingTest {
 
     @Test
     public void testStrictEquality() {
-        DomainNameMapping<String> mapping = new DomainNameMappingBuilder<String>("NotFound")
+        DomainNameMapping<String> mapping = new DomainMappingBuilder<String>("NotFound")
             .add("netty.io", "Netty")
             .add("downloads.netty.io", "Netty-Downloads")
             .build();
@@ -144,7 +142,7 @@ public class DomainNameMappingTest {
 
     @Test
     public void testWildcardMatchesAnyPrefix() {
-        DomainNameMapping<String> mapping = new DomainNameMappingBuilder<String>("NotFound")
+        DomainNameMapping<String> mapping = new DomainMappingBuilder<String>("NotFound")
             .add("*.netty.io", "Netty")
             .build();
 
@@ -158,14 +156,14 @@ public class DomainNameMappingTest {
     @Test
     public void testFirstMatchWins() {
         assertEquals("Netty",
-            new DomainNameMappingBuilder<String>("NotFound")
+            new DomainMappingBuilder<String>("NotFound")
                 .add("*.netty.io", "Netty")
                 .add("downloads.netty.io", "Netty-Downloads")
                 .build()
                 .map("downloads.netty.io"));
 
         assertEquals("Netty-Downloads",
-            new DomainNameMappingBuilder<String>("NotFound")
+            new DomainMappingBuilder<String>("NotFound")
                 .add("downloads.netty.io", "Netty-Downloads")
                 .add("*.netty.io", "Netty")
                 .build()
@@ -174,7 +172,7 @@ public class DomainNameMappingTest {
 
     @Test
     public void testToString() {
-        DomainNameMapping<String> mapping = new DomainNameMappingBuilder<String>("NotFound")
+        DomainNameMapping<String> mapping = new DomainMappingBuilder<String>("NotFound")
             .add("*.netty.io", "Netty")
             .add("downloads.netty.io", "Netty-Download")
             .build();
@@ -182,32 +180,5 @@ public class DomainNameMappingTest {
         assertEquals(
             "ImmutableDomainNameMapping(default: NotFound, map: {*.netty.io=Netty, downloads.netty.io=Netty-Download})",
             mapping.toString());
-    }
-
-    @Test
-    public void testAsMap() {
-        DomainNameMapping<String> mapping = new DomainNameMapping<String>("NotFound")
-            .add("netty.io", "Netty")
-            .add("downloads.netty.io", "Netty-Downloads");
-
-        Map<String, String> entries = mapping.asMap();
-
-        assertEquals(2, entries.size());
-        assertEquals("Netty", entries.get("netty.io"));
-        assertEquals("Netty-Downloads", entries.get("downloads.netty.io"));
-    }
-
-    @Test
-    public void testAsMapWithImmutableDomainNameMapping() {
-        DomainNameMapping<String> mapping = new DomainNameMappingBuilder<String>("NotFound")
-            .add("netty.io", "Netty")
-            .add("downloads.netty.io", "Netty-Downloads")
-            .build();
-
-        Map<String, String> entries = mapping.asMap();
-
-        assertEquals(2, entries.size());
-        assertEquals("Netty", entries.get("netty.io"));
-        assertEquals("Netty-Downloads", entries.get("downloads.netty.io"));
     }
 }

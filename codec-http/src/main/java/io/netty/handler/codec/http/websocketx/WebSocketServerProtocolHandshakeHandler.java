@@ -41,30 +41,18 @@ class WebSocketServerProtocolHandshakeHandler
     private final String subprotocols;
     private final boolean allowExtensions;
     private final int maxFramePayloadSize;
-    private final boolean checkStartsWith;
 
     WebSocketServerProtocolHandshakeHandler(String websocketPath, String subprotocols,
-            boolean allowExtensions, int maxFrameSize, boolean checkStartsWith) {
+            boolean allowExtensions, int maxFrameSize) {
         this.websocketPath = websocketPath;
         this.subprotocols = subprotocols;
         this.allowExtensions = allowExtensions;
         maxFramePayloadSize = maxFrameSize;
-        this.checkStartsWith = checkStartsWith;
     }
 
     @Override
     public void channelRead(final ChannelHandlerContext ctx, Object msg) throws Exception {
-        final FullHttpRequest req = (FullHttpRequest) msg;
-        if (checkStartsWith) {
-            if (!req.getUri().startsWith(websocketPath)) {
-                ctx.fireChannelRead(msg);
-                return;
-            }
-        } else if (!req.getUri().equals(websocketPath)) {
-            ctx.fireChannelRead(msg);
-            return;
-        }
-
+        FullHttpRequest req = (FullHttpRequest) msg;
         try {
             if (req.getMethod() != GET) {
                 sendHttpResponse(ctx, req, new DefaultFullHttpResponse(HTTP_1_1, FORBIDDEN));

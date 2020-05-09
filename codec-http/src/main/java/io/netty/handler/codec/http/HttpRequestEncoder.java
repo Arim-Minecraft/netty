@@ -27,6 +27,7 @@ import static io.netty.handler.codec.http.HttpConstants.*;
 public class HttpRequestEncoder extends HttpObjectEncoder<HttpRequest> {
     private static final char SLASH = '/';
     private static final char QUESTION_MARK = '?';
+    private static final byte[] CRLF = { CR, LF };
 
     @Override
     public boolean acceptOutboundMessage(Object msg) throws Exception {
@@ -42,7 +43,7 @@ public class HttpRequestEncoder extends HttpObjectEncoder<HttpRequest> {
         // See http://tools.ietf.org/html/rfc2616#section-5.1.2
         String uri = request.getUri();
 
-        if (uri.isEmpty()) {
+        if (uri.length() == 0) {
             uri += SLASH;
         } else {
             int start = uri.indexOf("://");
@@ -52,12 +53,17 @@ public class HttpRequestEncoder extends HttpObjectEncoder<HttpRequest> {
                 // See https://github.com/netty/netty/issues/2732
                 int index = uri.indexOf(QUESTION_MARK, startIndex);
                 if (index == -1) {
-                    if (uri.lastIndexOf(SLASH) < startIndex) {
+                    if (uri.lastIndexOf(SLASH) <= startIndex) {
                         uri += SLASH;
                     }
                 } else {
-                    if (uri.lastIndexOf(SLASH, index) < startIndex) {
-                        uri = new StringBuilder(uri).insert(index, SLASH).toString();
+                    if (uri.lastIndexOf(SLASH, index) <= startIndex) {
+                        int len = uri.length();
+                        StringBuilder sb = new StringBuilder(len + 1);
+                        sb.append(uri, 0, index)
+                          .append(SLASH)
+                          .append(uri, index, len);
+                        uri = sb.toString();
                     }
                 }
             }

@@ -48,10 +48,7 @@ import io.netty.channel.RecvByteBufAllocator;
  * <td>{@link RxtxChannelOption#WAIT_TIME}</td><td>{@link #setWaitTimeMillis(int)}</td>
  * </tr>
  * </table>
- *
- * @deprecated this transport will be removed in the next major version.
  */
-@Deprecated
 public interface RxtxChannelConfig extends ChannelConfig {
     enum Stopbits {
         /**
@@ -266,7 +263,7 @@ public interface RxtxChannelConfig extends ChannelConfig {
     /**
      * Sets the maximal time (in ms) to block while try to read from the serial port. Default is 1000ms
      */
-    RxtxChannelConfig setReadTimeout(int readTimeout);
+    RxtxChannelConfig setReadTimeout(int readTimout);
 
     /**
      * Return the maximal time (in ms) to block and wait for something to be ready to read.

@@ -425,10 +425,6 @@ public abstract class HttpHeaders implements Iterable<Map.Entry<String, String>>
      */
     public static final class Values {
         /**
-         * {@code "application/json"}
-         */
-        public static final String APPLICATION_JSON = "application/json";
-        /**
          * {@code "application/x-www-form-urlencoded"}
          */
          public static final String APPLICATION_X_WWW_FORM_URLENCODED =
@@ -477,10 +473,6 @@ public abstract class HttpHeaders implements Iterable<Map.Entry<String, String>>
          * {@code "gzip"}
          */
         public static final String GZIP = "gzip";
-        /**
-         * {@code "gzip,deflate"}
-         */
-        public static final String GZIP_DEFLATE = "gzip,deflate";
         /**
          * {@code "identity"}
          */
@@ -640,7 +632,7 @@ public abstract class HttpHeaders implements Iterable<Map.Entry<String, String>>
     }
 
     /**
-     * @see #getHeader(HttpMessage, CharSequence, String)
+     * @see {@link #getHeader(HttpMessage, CharSequence, String)}
      */
     public static String getHeader(HttpMessage message, String name, String defaultValue) {
         return getHeader(message, (CharSequence) name, defaultValue);
@@ -663,7 +655,7 @@ public abstract class HttpHeaders implements Iterable<Map.Entry<String, String>>
     }
 
     /**
-     * @see #setHeader(HttpMessage, CharSequence, Object)
+     * @see {@link #setHeader(HttpMessage, CharSequence, Object)}
      */
     public static void setHeader(HttpMessage message, String name, Object value) {
         message.headers().set(name, value);
@@ -683,7 +675,7 @@ public abstract class HttpHeaders implements Iterable<Map.Entry<String, String>>
 
     /**
      *
-     * @see #setHeader(HttpMessage, CharSequence, Iterable)
+     * @see {@link #setHeader(HttpMessage, CharSequence, Iterable)}
      */
     public static void setHeader(HttpMessage message, String name, Iterable<?> values) {
         message.headers().set(name, values);
@@ -708,7 +700,7 @@ public abstract class HttpHeaders implements Iterable<Map.Entry<String, String>>
     }
 
     /**
-     * @see #addHeader(HttpMessage, CharSequence, Object)
+     * @see {@link #addHeader(HttpMessage, CharSequence, Object)}
      */
     public static void addHeader(HttpMessage message, String name, Object value) {
         message.headers().add(name, value);
@@ -726,7 +718,7 @@ public abstract class HttpHeaders implements Iterable<Map.Entry<String, String>>
     }
 
     /**
-     * @see #removeHeader(HttpMessage, CharSequence)
+     * @see {@link #removeHeader(HttpMessage, CharSequence)}
      */
     public static void removeHeader(HttpMessage message, String name) {
         message.headers().remove(name);
@@ -747,7 +739,7 @@ public abstract class HttpHeaders implements Iterable<Map.Entry<String, String>>
     }
 
     /**
-     * @see #getIntHeader(HttpMessage, CharSequence)
+     * @see {@link #getIntHeader(HttpMessage, CharSequence)}
      */
     public static int getIntHeader(HttpMessage message, String name) {
         return getIntHeader(message, (CharSequence) name);
@@ -771,7 +763,7 @@ public abstract class HttpHeaders implements Iterable<Map.Entry<String, String>>
     }
 
     /**
-     * @see #getIntHeader(HttpMessage, CharSequence, int)
+     * @see {@link #getIntHeader(HttpMessage, CharSequence, int)}
      */
     public static int getIntHeader(HttpMessage message, String name, int defaultValue) {
         return getIntHeader(message, (CharSequence) name, defaultValue);
@@ -799,7 +791,7 @@ public abstract class HttpHeaders implements Iterable<Map.Entry<String, String>>
     }
 
     /**
-     * @see #setIntHeader(HttpMessage, CharSequence, int)
+     * @see {@link #setIntHeader(HttpMessage, CharSequence, int)}
      */
     public static void setIntHeader(HttpMessage message, String name, int value) {
         message.headers().set(name, value);
@@ -814,7 +806,7 @@ public abstract class HttpHeaders implements Iterable<Map.Entry<String, String>>
     }
 
     /**
-     * @see #setIntHeader(HttpMessage, CharSequence, Iterable)
+     * @see {@link #setIntHeader(HttpMessage, CharSequence, Iterable)}
      */
     public static void setIntHeader(HttpMessage message, String name, Iterable<Integer> values) {
         message.headers().set(name, values);
@@ -830,7 +822,7 @@ public abstract class HttpHeaders implements Iterable<Map.Entry<String, String>>
 
     /**
      *
-     * @see #addIntHeader(HttpMessage, CharSequence, int)
+     * @see {@link #addIntHeader(HttpMessage, CharSequence, int)}
      */
     public static void addIntHeader(HttpMessage message, String name, int value) {
         message.headers().add(name, value);
@@ -844,7 +836,7 @@ public abstract class HttpHeaders implements Iterable<Map.Entry<String, String>>
     }
 
     /**
-     * @see #getDateHeader(HttpMessage, CharSequence)
+     * @see {@link #getDateHeader(HttpMessage, CharSequence)}
      */
     public static Date getDateHeader(HttpMessage message, String name) throws ParseException {
         return getDateHeader(message, (CharSequence) name);
@@ -868,7 +860,7 @@ public abstract class HttpHeaders implements Iterable<Map.Entry<String, String>>
     }
 
     /**
-     * @see #getDateHeader(HttpMessage, CharSequence, Date)
+     * @see {@link #getDateHeader(HttpMessage, CharSequence, Date)}
      */
     public static Date getDateHeader(HttpMessage message, String name, Date defaultValue) {
         return getDateHeader(message, (CharSequence) name, defaultValue);
@@ -896,7 +888,7 @@ public abstract class HttpHeaders implements Iterable<Map.Entry<String, String>>
     }
 
     /**
-     * @see #setDateHeader(HttpMessage, CharSequence, Date)
+     * @see {@link #setDateHeader(HttpMessage, CharSequence, Date)}
      */
     public static void setDateHeader(HttpMessage message, String name, Date value) {
         setDateHeader(message, (CharSequence) name, value);
@@ -917,7 +909,7 @@ public abstract class HttpHeaders implements Iterable<Map.Entry<String, String>>
     }
 
     /**
-     * @see #setDateHeader(HttpMessage, CharSequence, Iterable)
+     * @see {@link #setDateHeader(HttpMessage, CharSequence, Iterable)}
      */
     public static void setDateHeader(HttpMessage message, String name, Iterable<Date> values) {
         message.headers().set(name, values);
@@ -934,7 +926,7 @@ public abstract class HttpHeaders implements Iterable<Map.Entry<String, String>>
     }
 
     /**
-     * @see #addDateHeader(HttpMessage, CharSequence, Date)
+     * @see {@link #addDateHeader(HttpMessage, CharSequence, Date)}
      */
     public static void addDateHeader(HttpMessage message, String name, Date value) {
         message.headers().add(name, value);
@@ -1059,7 +1051,7 @@ public abstract class HttpHeaders implements Iterable<Map.Entry<String, String>>
     }
 
     /**
-     * @see #setHost(HttpMessage, CharSequence)
+     * @see {@link #setHost(HttpMessage, CharSequence)}
      */
     public static void setHost(HttpMessage message, String value) {
         message.headers().set(HOST_ENTITY, value);
@@ -1141,7 +1133,7 @@ public abstract class HttpHeaders implements Iterable<Map.Entry<String, String>>
 
     /**
      * Sets or removes the {@code "Expect: 100-continue"} header to / from the
-     * specified message.  If {@code set} is {@code true},
+     * specified message.  If the specified {@code value} is {@code true},
      * the {@code "Expect: 100-continue"} header is set and all other previous
      * {@code "Expect"} headers are removed.  Otherwise, all {@code "Expect"}
      * headers are removed completely.
@@ -1293,7 +1285,7 @@ public abstract class HttpHeaders implements Iterable<Map.Entry<String, String>>
     }
 
     public static void setTransferEncodingChunked(HttpMessage m) {
-        setHeader(m, TRANSFER_ENCODING_ENTITY, CHUNKED_ENTITY);
+        addHeader(m, TRANSFER_ENCODING_ENTITY, CHUNKED_ENTITY);
         removeHeader(m, CONTENT_LENGTH_ENTITY);
     }
 
@@ -1477,7 +1469,7 @@ public abstract class HttpHeaders implements Iterable<Map.Entry<String, String>>
     public abstract List<Map.Entry<String, String>> entries();
 
     /**
-     * @see #contains(CharSequence)
+     * @see {@link #contains(CharSequence)}
      */
     public abstract boolean contains(String name);
 
@@ -1672,48 +1664,6 @@ public abstract class HttpHeaders implements Iterable<Map.Entry<String, String>>
                 }
             } else {
                 if (v.equals(value)) {
-                    return true;
-                }
-            }
-        }
-        return false;
-    }
-
-    /**
-     * Returns {@code true} if a header with the {@code name} and {@code value} exists, {@code false} otherwise.
-     * This also handles multiple values that are seperated with a {@code ,}.
-     * <p>
-     * If {@code ignoreCase} is {@code true} then a case insensitive compare is done on the value.
-     * @param name the name of the header to find
-     * @param value the value of the header to find
-     * @param ignoreCase {@code true} then a case insensitive compare is run to compare values.
-     * otherwise a case sensitive compare is run to compare values.
-     */
-    public boolean containsValue(CharSequence name, CharSequence value, boolean ignoreCase) {
-        List<String> values = getAll(name);
-        if (values.isEmpty()) {
-            return false;
-        }
-
-        for (String v: values) {
-            if (contains(v, value, ignoreCase)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private static boolean contains(String value, CharSequence expected, boolean ignoreCase) {
-        String[] parts = value.split(",");
-        if (ignoreCase) {
-            for (String s: parts) {
-                if (equalsIgnoreCase(expected, s.trim())) {
-                    return true;
-                }
-            }
-        } else {
-            for (String s: parts) {
-                if (s.trim().contentEquals(expected)) {
                     return true;
                 }
             }

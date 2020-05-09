@@ -26,12 +26,11 @@ import io.netty.channel.ChannelPromise;
 import io.netty.channel.DefaultChannelPromise;
 import io.netty.channel.EventLoop;
 import io.netty.channel.EventLoopGroup;
-import io.netty.util.internal.SocketUtils;
 import io.netty.util.AttributeKey;
 import io.netty.util.concurrent.EventExecutor;
 import io.netty.util.concurrent.GlobalEventExecutor;
+import io.netty.util.internal.OneTimeTask;
 import io.netty.util.internal.StringUtil;
-import io.netty.util.internal.logging.InternalLogger;
 
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
@@ -76,6 +75,7 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
      * The {@link EventLoopGroup} which is used to handle all the events for the to-be-created
      * {@link Channel}
      */
+    @SuppressWarnings("unchecked")
     public B group(EventLoopGroup group) {
         if (group == null) {
             throw new NullPointerException("group");
@@ -84,11 +84,6 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
             throw new IllegalStateException("group set already");
         }
         this.group = group;
-        return self();
-    }
-
-    @SuppressWarnings("unchecked")
-    private B self() {
         return (B) this;
     }
 
@@ -111,6 +106,7 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
      * has a no-args constructor, its highly recommend to just use {@link #channel(Class)} for
      * simplify your code.
      */
+    @SuppressWarnings("unchecked")
     public B channelFactory(ChannelFactory<? extends C> channelFactory) {
         if (channelFactory == null) {
             throw new NullPointerException("channelFactory");
@@ -120,34 +116,35 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
         }
 
         this.channelFactory = channelFactory;
-        return self();
+        return (B) this;
     }
 
     /**
      * The {@link SocketAddress} which is used to bind the local "end" to.
      *
      */
+    @SuppressWarnings("unchecked")
     public B localAddress(SocketAddress localAddress) {
         this.localAddress = localAddress;
-        return self();
+        return (B) this;
     }
 
     /**
-     * @see #localAddress(SocketAddress)
+     * @see {@link #localAddress(SocketAddress)}
      */
     public B localAddress(int inetPort) {
         return localAddress(new InetSocketAddress(inetPort));
     }
 
     /**
-     * @see #localAddress(SocketAddress)
+     * @see {@link #localAddress(SocketAddress)}
      */
     public B localAddress(String inetHost, int inetPort) {
-        return localAddress(SocketUtils.socketAddress(inetHost, inetPort));
+        return localAddress(new InetSocketAddress(inetHost, inetPort));
     }
 
     /**
-     * @see #localAddress(SocketAddress)
+     * @see {@link #localAddress(SocketAddress)}
      */
     public B localAddress(InetAddress inetHost, int inetPort) {
         return localAddress(new InetSocketAddress(inetHost, inetPort));
@@ -157,6 +154,7 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
      * Allow to specify a {@link ChannelOption} which is used for the {@link Channel} instances once they got
      * created. Use a value of {@code null} to remove a previous set {@link ChannelOption}.
      */
+    @SuppressWarnings("unchecked")
     public <T> B option(ChannelOption<T> option, T value) {
         if (option == null) {
             throw new NullPointerException("option");
@@ -170,13 +168,14 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
                 options.put(option, value);
             }
         }
-        return self();
+        return (B) this;
     }
 
     /**
      * Allow to specify an initial attribute of the newly created {@link Channel}.  If the {@code value} is
      * {@code null}, the attribute of the specified {@code key} is removed.
      */
+    @SuppressWarnings("unchecked")
     public <T> B attr(AttributeKey<T> key, T value) {
         if (key == null) {
             throw new NullPointerException("key");
@@ -190,13 +189,14 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
                 attrs.put(key, value);
             }
         }
-        return self();
+        return (B) this;
     }
 
     /**
      * Validate all the parameters. Sub-classes may override this, but should
      * call the super method in that case.
      */
+    @SuppressWarnings("unchecked")
     public B validate() {
         if (group == null) {
             throw new IllegalStateException("group not set");
@@ -204,7 +204,7 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
         if (channelFactory == null) {
             throw new IllegalStateException("channel or channelFactory not set");
         }
-        return self();
+        return (B) this;
     }
 
     /**
@@ -247,7 +247,7 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
      * Create a new {@link Channel} and bind it.
      */
     public ChannelFuture bind(String inetHost, int inetPort) {
-        return bind(SocketUtils.socketAddress(inetHost, inetPort));
+        return bind(new InetSocketAddress(inetHost, inetPort));
     }
 
     /**
@@ -295,9 +295,8 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
                         // Registration was successful, so set the correct executor to use.
                         // See https://github.com/netty/netty/issues/2586
                         promise.executor = channel.eventLoop();
-
-                        doBind0(regFuture, channel, localAddress, promise);
                     }
+                    doBind0(regFuture, channel, localAddress, promise);
                 }
             });
             return promise;
@@ -305,19 +304,13 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
     }
 
     final ChannelFuture initAndRegister() {
-        Channel channel = null;
+        final Channel channel = channelFactory().newChannel();
         try {
-            channel = channelFactory().newChannel();
             init(channel);
         } catch (Throwable t) {
-            if (channel != null) {
-                // channel can be null if newChannel crashed (eg SocketException("too many open files"))
-                channel.unsafe().closeForcibly();
-                // as the Channel is not registered yet we need to force the usage of the GlobalEventExecutor
-                return new DefaultChannelPromise(channel, GlobalEventExecutor.INSTANCE).setFailure(t);
-            }
+            channel.unsafe().closeForcibly();
             // as the Channel is not registered yet we need to force the usage of the GlobalEventExecutor
-            return new DefaultChannelPromise(new FailedChannel(), GlobalEventExecutor.INSTANCE).setFailure(t);
+            return new DefaultChannelPromise(channel, GlobalEventExecutor.INSTANCE).setFailure(t);
         }
 
         ChannelFuture regFuture = group().register(channel);
@@ -349,7 +342,7 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
 
         // This method is invoked before channelRegistered() is triggered.  Give user handlers a chance to set up
         // the pipeline in its channelRegistered() implementation.
-        channel.eventLoop().execute(new Runnable() {
+        channel.eventLoop().execute(new OneTimeTask() {
             @Override
             public void run() {
                 if (regFuture.isSuccess()) {
@@ -364,12 +357,13 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
     /**
      * the {@link ChannelHandler} to use for serving the requests.
      */
+    @SuppressWarnings("unchecked")
     public B handler(ChannelHandler handler) {
         if (handler == null) {
             throw new NullPointerException("handler");
         }
         this.handler = handler;
-        return self();
+        return (B) this;
     }
 
     final SocketAddress localAddress() {
@@ -397,33 +391,6 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
 
     final Map<AttributeKey<?>, Object> attrs() {
         return attrs;
-    }
-
-    static void setChannelOptions(
-            Channel channel, Map<ChannelOption<?>, Object> options, InternalLogger logger) {
-        for (Map.Entry<ChannelOption<?>, Object> e: options.entrySet()) {
-            setChannelOption(channel, e.getKey(), e.getValue(), logger);
-        }
-    }
-
-    static void setChannelOptions(
-            Channel channel, Map.Entry<ChannelOption<?>, Object>[] options, InternalLogger logger) {
-        for (Map.Entry<ChannelOption<?>, Object> e: options) {
-            setChannelOption(channel, e.getKey(), e.getValue(), logger);
-        }
-    }
-
-    @SuppressWarnings("unchecked")
-    private static void setChannelOption(
-            Channel channel, ChannelOption<?> option, Object value, InternalLogger logger) {
-        try {
-            if (!channel.config().setOption((ChannelOption<Object>) option, value)) {
-                logger.warn("Unknown channel option '{}' for channel '{}'", option, channel);
-            }
-        } catch (Throwable t) {
-            logger.warn(
-                    "Failed to set channel option '{}' with value '{}' for channel '{}'", option, value, channel, t);
-        }
     }
 
     @Override
@@ -484,7 +451,7 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
         @Override
         public T newChannel() {
             try {
-                return clazz.getConstructor().newInstance();
+                return clazz.newInstance();
             } catch (Throwable t) {
                 throw new ChannelException("Unable to create Channel from class " + clazz, t);
             }

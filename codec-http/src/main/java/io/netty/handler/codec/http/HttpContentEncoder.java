@@ -63,6 +63,7 @@ public abstract class HttpContentEncoder extends MessageToMessageCodec<HttpReque
     private static final int CONTINUE_CODE = HttpResponseStatus.CONTINUE.code();
 
     private final Queue<CharSequence> acceptEncodingQueue = new ArrayDeque<CharSequence>();
+    private CharSequence acceptEncoding;
     private EmbeddedChannel encoder;
     private State state = State.AWAIT_HEADERS;
 
@@ -74,9 +75,9 @@ public abstract class HttpContentEncoder extends MessageToMessageCodec<HttpReque
     @Override
     protected void decode(ChannelHandlerContext ctx, HttpRequest msg, List<Object> out)
             throws Exception {
-        CharSequence acceptedEncoding = msg.headers().get(Names.ACCEPT_ENCODING);
+        CharSequence acceptedEncoding = msg.headers().get(HttpHeaders.Names.ACCEPT_ENCODING);
         if (acceptedEncoding == null) {
-            acceptedEncoding = Values.IDENTITY;
+            acceptedEncoding = HttpHeaders.Values.IDENTITY;
         }
 
         HttpMethod meth = msg.getMethod();
@@ -100,7 +101,6 @@ public abstract class HttpContentEncoder extends MessageToMessageCodec<HttpReque
 
                 final HttpResponse res = (HttpResponse) msg;
                 final int code = res.getStatus().code();
-                final CharSequence acceptEncoding;
                 if (code == CONTINUE_CODE) {
                     // We need to not poll the encoding when response with CONTINUE as another response will follow
                     // for the issued request. See https://github.com/netty/netty/issues/4079
@@ -122,11 +122,9 @@ public abstract class HttpContentEncoder extends MessageToMessageCodec<HttpReque
                  * The HEAD method is identical to GET except that the server MUST NOT return a message-body
                  * in the response.
                  *
-                 * Also we should pass through HTTP/1.0 as transfer-encoding: chunked is not supported.
-                 *
-                 * See https://github.com/netty/netty/issues/5382
+                 * This code is now inline with HttpClientDecoder.Decoder
                  */
-                if (isPassthru(res.getProtocolVersion(), code, acceptEncoding)) {
+                if (isPassthru(code, acceptEncoding)) {
                     if (isFull) {
                         out.add(ReferenceCountUtil.retain(res));
                     } else {
@@ -166,21 +164,18 @@ public abstract class HttpContentEncoder extends MessageToMessageCodec<HttpReque
                 // so that the message looks like a decoded message.
                 res.headers().set(Names.CONTENT_ENCODING, result.targetContentEncoding());
 
+                // Make the response chunked to simplify content transformation.
+                res.headers().remove(Names.CONTENT_LENGTH);
+                res.headers().set(Names.TRANSFER_ENCODING, Values.CHUNKED);
+
                 // Output the rewritten response.
                 if (isFull) {
                     // Convert full message into unfull one.
                     HttpResponse newRes = new DefaultHttpResponse(res.getProtocolVersion(), res.getStatus());
                     newRes.headers().set(res.headers());
                     out.add(newRes);
-
-                    ensureContent(res);
-                    encodeFullResponse(newRes, (HttpContent) res, out);
-                    break;
+                    // Fall through to encode the content of the full response.
                 } else {
-                    // Make the response chunked to simplify content transformation.
-                    res.headers().remove(Names.CONTENT_LENGTH);
-                    res.headers().set(Names.TRANSFER_ENCODING, Values.CHUNKED);
-
                     out.add(res);
                     state = State.AWAIT_CONTENT;
                     if (!(msg instanceof HttpContent)) {
@@ -210,29 +205,9 @@ public abstract class HttpContentEncoder extends MessageToMessageCodec<HttpReque
         }
     }
 
-    private void encodeFullResponse(HttpResponse newRes, HttpContent content, List<Object> out) {
-        int existingMessages = out.size();
-        encodeContent(content, out);
-
-        if (HttpHeaders.isContentLengthSet(newRes)) {
-            // adjust the content-length header
-            int messageSize = 0;
-            for (int i = existingMessages; i < out.size(); i++) {
-                Object item = out.get(i);
-                if (item instanceof HttpContent) {
-                    messageSize += ((HttpContent) item).content().readableBytes();
-                }
-            }
-            HttpHeaders.setContentLength(newRes, messageSize);
-        } else {
-            newRes.headers().set(Names.TRANSFER_ENCODING, Values.CHUNKED);
-        }
-    }
-
-    private static boolean isPassthru(HttpVersion version, int code, CharSequence httpMethod) {
+    private static boolean isPassthru(int code, CharSequence httpMethod) {
         return code < 200 || code == 204 || code == 304 ||
-               (httpMethod == ZERO_LENGTH_HEAD || (httpMethod == ZERO_LENGTH_CONNECT && code == 200)) ||
-                version == HttpVersion.HTTP_1_0;
+               (httpMethod == ZERO_LENGTH_HEAD || (httpMethod == ZERO_LENGTH_CONNECT && code == 200));
     }
 
     private static void ensureHeaders(HttpObject msg) {
@@ -291,31 +266,31 @@ public abstract class HttpContentEncoder extends MessageToMessageCodec<HttpReque
 
     @Override
     public void handlerRemoved(ChannelHandlerContext ctx) throws Exception {
-        cleanupSafely(ctx);
+        cleanup();
         super.handlerRemoved(ctx);
     }
 
     @Override
     public void channelInactive(ChannelHandlerContext ctx) throws Exception {
-        cleanupSafely(ctx);
+        cleanup();
         super.channelInactive(ctx);
     }
 
     private void cleanup() {
         if (encoder != null) {
             // Clean-up the previous encoder if not cleaned up correctly.
-            encoder.finishAndReleaseAll();
+            if (encoder.finish()) {
+                for (;;) {
+                    ByteBuf buf = (ByteBuf) encoder.readOutbound();
+                    if (buf == null) {
+                        break;
+                    }
+                    // Release the buffer
+                    // https://github.com/netty/netty/issues/1524
+                    buf.release();
+                }
+            }
             encoder = null;
-        }
-    }
-
-    private void cleanupSafely(ChannelHandlerContext ctx) {
-        try {
-            cleanup();
-        } catch (Throwable cause) {
-            // If cleanup throws any error we need to propagate it through the pipeline
-            // so we don't fail to propagate pipeline events.
-            ctx.fireExceptionCaught(cause);
         }
     }
 

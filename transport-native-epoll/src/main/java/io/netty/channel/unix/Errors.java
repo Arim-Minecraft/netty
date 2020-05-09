@@ -17,24 +17,15 @@ package io.netty.channel.unix;
 
 import io.netty.util.internal.EmptyArrays;
 
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.ConnectException;
-import java.net.NoRouteToHostException;
-import java.nio.channels.AlreadyConnectedException;
 import java.nio.channels.ClosedChannelException;
-import java.nio.channels.ConnectionPendingException;
-import java.nio.channels.NotYetConnectedException;
-
-import static io.netty.channel.unix.ErrorsStaticallyReferencedJniMethods.*;
 
 /**
  * <strong>Internal usage only!</strong>
- * <p>Static members which call JNI methods must be defined in {@link ErrorsStaticallyReferencedJniMethods}.
  */
 public final class Errors {
     // As all our JNI methods return -errno on error we need to compare with the negative errno codes.
-    public static final int ERRNO_ENOENT_NEGATIVE = -errnoENOENT();
     public static final int ERRNO_ENOTCONN_NEGATIVE = -errnoENOTCONN();
     public static final int ERRNO_EBADF_NEGATIVE = -errnoEBADF();
     public static final int ERRNO_EPIPE_NEGATIVE = -errnoEPIPE();
@@ -42,10 +33,6 @@ public final class Errors {
     public static final int ERRNO_EAGAIN_NEGATIVE = -errnoEAGAIN();
     public static final int ERRNO_EWOULDBLOCK_NEGATIVE = -errnoEWOULDBLOCK();
     public static final int ERRNO_EINPROGRESS_NEGATIVE = -errnoEINPROGRESS();
-    public static final int ERROR_ECONNREFUSED_NEGATIVE = -errorECONNREFUSED();
-    public static final int ERROR_EISCONN_NEGATIVE = -errorEISCONN();
-    public static final int ERROR_EALREADY_NEGATIVE = -errorEALREADY();
-    public static final int ERROR_ENETUNREACH_NEGATIVE = -errorENETUNREACH();
 
     /**
      * Holds the mappings for errno codes to String messages.
@@ -56,6 +43,16 @@ public final class Errors {
      */
     private static final String[] ERRORS = new String[512];
 
+    // Pre-instantiated exceptions which does not need any stacktrace and
+    // can be thrown multiple times for performance reasons.
+    static final ClosedChannelException CLOSED_CHANNEL_EXCEPTION;
+    static final NativeIoException CONNECTION_NOT_CONNECTED_SHUTDOWN_EXCEPTION;
+    static final NativeIoException CONNECTION_RESET_EXCEPTION_WRITE;
+    static final NativeIoException CONNECTION_RESET_EXCEPTION_WRITEV;
+    static final NativeIoException CONNECTION_RESET_EXCEPTION_READ;
+    static final NativeIoException CONNECTION_RESET_EXCEPTION_SENDTO;
+    static final NativeIoException CONNECTION_RESET_EXCEPTION_SENDMSG;
+
     /**
      * <strong>Internal usage only!</strong>
      */
@@ -63,24 +60,11 @@ public final class Errors {
         private static final long serialVersionUID = 8222160204268655526L;
         private final int expectedErr;
         public NativeIoException(String method, int expectedErr) {
-            super(method + "(..) failed: " + ERRORS[-expectedErr]);
+            super(method);
             this.expectedErr = expectedErr;
         }
 
         public int expectedErr() {
-            return expectedErr;
-        }
-    }
-
-    static final class NativeConnectException extends ConnectException {
-        private static final long serialVersionUID = -5532328671712318161L;
-        private final int expectedErr;
-        NativeConnectException(String method, int expectedErr) {
-            super(method + "(..) failed: " + ERRORS[-expectedErr]);
-            this.expectedErr = expectedErr;
-        }
-
-        int expectedErr() {
             return expectedErr;
         }
     }
@@ -90,26 +74,25 @@ public final class Errors {
             // This is ok as strerror returns 'Unknown error i' when the message is not known.
             ERRORS[i] = strError(i);
         }
+
+        CONNECTION_RESET_EXCEPTION_READ = newConnectionResetException("syscall:read(...)",
+                ERRNO_ECONNRESET_NEGATIVE);
+        CONNECTION_RESET_EXCEPTION_WRITE = newConnectionResetException("syscall:write(...)",
+                ERRNO_EPIPE_NEGATIVE);
+        CONNECTION_RESET_EXCEPTION_WRITEV = newConnectionResetException("syscall:writev(...)",
+                ERRNO_EPIPE_NEGATIVE);
+        CONNECTION_RESET_EXCEPTION_SENDTO = newConnectionResetException("syscall:sendto(...)",
+                ERRNO_EPIPE_NEGATIVE);
+        CONNECTION_RESET_EXCEPTION_SENDMSG = newConnectionResetException("syscall:sendmsg(...)",
+                ERRNO_EPIPE_NEGATIVE);
+        CONNECTION_NOT_CONNECTED_SHUTDOWN_EXCEPTION = newConnectionResetException("syscall:shutdown(...)",
+                ERRNO_ENOTCONN_NEGATIVE);
+        CLOSED_CHANNEL_EXCEPTION = new ClosedChannelException();
+        CLOSED_CHANNEL_EXCEPTION.setStackTrace(EmptyArrays.EMPTY_STACK_TRACE);
     }
 
-    static void throwConnectException(String method, NativeConnectException refusedCause, int err)
-            throws IOException {
-        if (err == refusedCause.expectedErr()) {
-            throw refusedCause;
-        }
-        if (err == ERROR_EALREADY_NEGATIVE) {
-            throw new ConnectionPendingException();
-        }
-        if (err == ERROR_ENETUNREACH_NEGATIVE) {
-            throw new NoRouteToHostException();
-        }
-        if (err == ERROR_EISCONN_NEGATIVE) {
-            throw new AlreadyConnectedException();
-        }
-        if (err == ERRNO_ENOENT_NEGATIVE) {
-            throw new FileNotFoundException();
-        }
-        throw new ConnectException(method + "(..) failed: " + ERRORS[-err]);
+    static ConnectException newConnectException(String method, int err) {
+        return new ConnectException(method + "() failed: " + ERRORS[-err]);
     }
 
     public static NativeIoException newConnectionResetException(String method, int errnoNegative) {
@@ -119,11 +102,10 @@ public final class Errors {
     }
 
     public static NativeIoException newIOException(String method, int err) {
-        return new NativeIoException(method, err);
+        return new NativeIoException(method + "() failed: " + ERRORS[-err], err);
     }
 
-    public static int ioResult(String method, int err, NativeIoException resetCause,
-                               ClosedChannelException closedCause) throws IOException {
+    public static int ioResult(String method, int err, NativeIoException resetCause) throws IOException {
         // network stack saturated... try again later
         if (err == ERRNO_EAGAIN_NEGATIVE || err == ERRNO_EWOULDBLOCK_NEGATIVE) {
             return 0;
@@ -131,20 +113,22 @@ public final class Errors {
         if (err == resetCause.expectedErr()) {
             throw resetCause;
         }
-        if (err == ERRNO_EBADF_NEGATIVE) {
-            throw closedCause;
+        if (err == ERRNO_EBADF_NEGATIVE || err == ERRNO_ENOTCONN_NEGATIVE) {
+            throw CLOSED_CHANNEL_EXCEPTION;
         }
-        if (err == ERRNO_ENOTCONN_NEGATIVE) {
-            throw new NotYetConnectedException();
-        }
-        if (err == ERRNO_ENOENT_NEGATIVE) {
-            throw new FileNotFoundException();
-        }
-
         // TODO: We could even go further and use a pre-instantiated IOException for the other error codes, but for
         //       all other errors it may be better to just include a stack trace.
         throw newIOException(method, err);
     }
+
+    private static native int errnoEBADF();
+    private static native int errnoEPIPE();
+    private static native int errnoECONNRESET();
+    private static native int errnoENOTCONN();
+    private static native int errnoEAGAIN();
+    private static native int errnoEWOULDBLOCK();
+    private static native int errnoEINPROGRESS();
+    private static native String strError(int err);
 
     private Errors() { }
 }

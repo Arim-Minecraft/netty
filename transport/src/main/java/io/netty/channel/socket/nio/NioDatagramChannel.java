@@ -30,10 +30,8 @@ import io.netty.channel.nio.AbstractNioMessageChannel;
 import io.netty.channel.socket.DatagramChannelConfig;
 import io.netty.channel.socket.DatagramPacket;
 import io.netty.channel.socket.InternetProtocolFamily;
-import io.netty.util.internal.SocketUtils;
 import io.netty.util.internal.PlatformDependent;
 import io.netty.util.internal.StringUtil;
-import io.netty.util.internal.UnstableApi;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -191,22 +189,14 @@ public final class NioDatagramChannel
 
     @Override
     protected void doBind(SocketAddress localAddress) throws Exception {
-        doBind0(localAddress);
-    }
-
-    private void doBind0(SocketAddress localAddress) throws Exception {
-        if (PlatformDependent.javaVersion() >= 7) {
-            SocketUtils.bind(javaChannel(), localAddress);
-        } else {
-            javaChannel().socket().bind(localAddress);
-        }
+        javaChannel().socket().bind(localAddress);
     }
 
     @Override
     protected boolean doConnect(SocketAddress remoteAddress,
             SocketAddress localAddress) throws Exception {
         if (localAddress != null) {
-            doBind0(localAddress);
+            javaChannel().socket().bind(localAddress);
         }
 
         boolean success = false;
@@ -290,8 +280,7 @@ public final class NioDatagramChannel
             return true;
         }
 
-        final ByteBuffer nioData = data.nioBufferCount() == 1 ? data.internalNioBuffer(data.readerIndex(), dataLen)
-                                                              : data.nioBuffer(data.readerIndex(), dataLen);
+        final ByteBuffer nioData = data.internalNioBuffer(data.readerIndex(), dataLen);
         final int writtenBytes;
         if (remoteAddress != null) {
             writtenBytes = javaChannel().send(nioData, remoteAddress);
@@ -596,15 +585,5 @@ public final class NioDatagramChannel
     @Override
     protected void setReadPending(boolean readPending) {
         super.setReadPending(readPending);
-    }
-
-    @Override
-    protected boolean closeOnReadError(Throwable cause) {
-        // We do not want to close on SocketException when using DatagramChannel as we usually can continue receiving.
-        // See https://github.com/netty/netty/issues/5893
-        if (cause instanceof SocketException) {
-            return false;
-        }
-        return super.closeOnReadError(cause);
     }
 }

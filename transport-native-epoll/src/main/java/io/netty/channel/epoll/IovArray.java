@@ -16,6 +16,7 @@
 package io.netty.channel.epoll;
 
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.CompositeByteBuf;
 import io.netty.channel.ChannelOutboundBuffer.MessageProcessor;
 import io.netty.util.internal.PlatformDependent;
 
@@ -73,41 +74,22 @@ final class IovArray implements MessageProcessor {
      * {@code false} otherwise.
      */
     boolean add(ByteBuf buf) {
-        int nioBufferCount = buf.nioBufferCount();
-        if (count + nioBufferCount > Native.IOV_MAX) {
+        if (count == Native.IOV_MAX) {
             // No more room!
             return false;
         }
 
-        if (nioBufferCount == 1) {
-            final int len = buf.readableBytes();
-            if (len == 0) {
-                // No need to add an empty buffer.
-                // We return true here because we want ChannelOutboundBuffer.forEachFlushedMessage() to continue
-                // fetching the next buffers.
-                return true;
-            }
-
-            final long addr = buf.memoryAddress();
-            final int offset = buf.readerIndex();
-            return add(addr, offset, len);
-        } else {
-            ByteBuffer[] buffers = buf.nioBuffers();
-            for (ByteBuffer nioBuffer : buffers) {
-                int len = nioBuffer.remaining();
-                if (len == 0) {
-                    // No need to add an empty buffer so just continue
-                    continue;
-                }
-                int offset = nioBuffer.position();
-                long addr = PlatformDependent.directBufferAddress(nioBuffer);
-
-                if (!add(addr, offset, len)) {
-                    return false;
-                }
-            }
+        final int len = buf.readableBytes();
+        if (len == 0) {
+            // No need to add an empty buffer.
+            // We return true here because we want ChannelOutboundBuffer.forEachFlushedMessage() to continue
+            // fetching the next buffers.
             return true;
         }
+
+        final long addr = buf.memoryAddress();
+        final int offset = buf.readerIndex();
+        return add(addr, offset, len);
     }
 
     private boolean add(long addr, int offset, int len) {
@@ -138,6 +120,33 @@ final class IovArray implements MessageProcessor {
             assert ADDRESS_SIZE == 4;
             PlatformDependent.putInt(baseOffset, (int) addr + offset);
             PlatformDependent.putInt(lengthOffset, len);
+        }
+        return true;
+    }
+
+    /**
+     * Try to add the given {@link CompositeByteBuf}. Returns {@code true} on success,
+     * {@code false} otherwise.
+     */
+    boolean add(CompositeByteBuf buf) {
+        ByteBuffer[] buffers = buf.nioBuffers();
+        if (count + buffers.length >= Native.IOV_MAX) {
+            // No more room!
+            return false;
+        }
+        for (int i = 0; i < buffers.length; i++) {
+            ByteBuffer nioBuffer = buffers[i];
+            int offset = nioBuffer.position();
+            int len = nioBuffer.limit() - nioBuffer.position();
+            if (len == 0) {
+                // No need to add an empty buffer so just continue
+                continue;
+            }
+            long addr = PlatformDependent.directBufferAddress(nioBuffer);
+
+            if (!add(addr, offset, len)) {
+                return false;
+            }
         }
         return true;
     }
@@ -203,7 +212,11 @@ final class IovArray implements MessageProcessor {
     @Override
     public boolean processMessage(Object msg) throws Exception {
         if (msg instanceof ByteBuf) {
-            return add((ByteBuf) msg);
+            if (msg instanceof CompositeByteBuf) {
+                return add((CompositeByteBuf) msg);
+            } else {
+                return add((ByteBuf) msg);
+            }
         }
         return false;
     }

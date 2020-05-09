@@ -49,7 +49,8 @@ public class WebSocketServerHandshaker13Test {
         EmbeddedChannel ch = new EmbeddedChannel(
                 new HttpObjectAggregator(42), new HttpRequestDecoder(), new HttpResponseEncoder());
 
-        FullHttpRequest req = new DefaultFullHttpRequest(HTTP_1_1, HttpMethod.GET, "/chat");
+        FullHttpRequest req = ReferenceCountUtil.releaseLater(
+                new DefaultFullHttpRequest(HTTP_1_1, HttpMethod.GET, "/chat"));
         req.headers().set(Names.HOST, "server.example.com");
         req.headers().set(Names.UPGRADE, WEBSOCKET.toLowerCase());
         req.headers().set(Names.CONNECTION, "Upgrade");
@@ -80,6 +81,5 @@ public class WebSocketServerHandshaker13Test {
             Assert.assertNull(res.headers().get(Names.SEC_WEBSOCKET_PROTOCOL));
         }
         ReferenceCountUtil.release(res);
-        req.release();
     }
 }

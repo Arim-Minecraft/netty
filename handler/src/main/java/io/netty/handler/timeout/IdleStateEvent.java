@@ -16,12 +16,11 @@
 package io.netty.handler.timeout;
 
 import io.netty.channel.Channel;
-import io.netty.util.internal.ObjectUtil;
 
 /**
  * A user event triggered by {@link IdleStateHandler} when a {@link Channel} is idle.
  */
-public class IdleStateEvent {
+public final class IdleStateEvent {
     public static final IdleStateEvent FIRST_READER_IDLE_STATE_EVENT = new IdleStateEvent(IdleState.READER_IDLE, true);
     public static final IdleStateEvent READER_IDLE_STATE_EVENT = new IdleStateEvent(IdleState.READER_IDLE, false);
     public static final IdleStateEvent FIRST_WRITER_IDLE_STATE_EVENT = new IdleStateEvent(IdleState.WRITER_IDLE, true);
@@ -32,14 +31,8 @@ public class IdleStateEvent {
     private final IdleState state;
     private final boolean first;
 
-    /**
-     * Constructor for sub-classes.
-     *
-     * @param state the {@link IdleStateEvent} which triggered the event.
-     * @param first {@code true} if its the first idle event for the {@link IdleStateEvent}.
-     */
-    protected IdleStateEvent(IdleState state, boolean first) {
-        this.state = ObjectUtil.checkNotNull(state, "state");
+    private IdleStateEvent(IdleState state, boolean first) {
+        this.state = state;
         this.first = first;
     }
 

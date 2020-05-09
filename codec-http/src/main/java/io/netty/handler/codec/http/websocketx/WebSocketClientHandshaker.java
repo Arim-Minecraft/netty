@@ -31,23 +31,22 @@ import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.HttpRequestEncoder;
 import io.netty.handler.codec.http.HttpResponse;
 import io.netty.handler.codec.http.HttpResponseDecoder;
-import io.netty.util.NetUtil;
 import io.netty.util.ReferenceCountUtil;
-import io.netty.util.internal.ThrowableUtil;
+import io.netty.util.internal.EmptyArrays;
+import io.netty.util.internal.StringUtil;
 
 import java.net.URI;
 import java.nio.channels.ClosedChannelException;
-import java.util.Locale;
 
 /**
  * Base class for web socket client handshake implementations
  */
 public abstract class WebSocketClientHandshaker {
-    private static final ClosedChannelException CLOSED_CHANNEL_EXCEPTION = ThrowableUtil.unknownStackTrace(
-            new ClosedChannelException(), WebSocketClientHandshaker.class, "processHandshake(...)");
+    private static final ClosedChannelException CLOSED_CHANNEL_EXCEPTION = new ClosedChannelException();
 
-    private static final String HTTP_SCHEME_PREFIX = "http://";
-    private static final String HTTPS_SCHEME_PREFIX = "https://";
+    static {
+        CLOSED_CHANNEL_EXCEPTION.setStackTrace(EmptyArrays.EMPTY_STACK_TRACE);
+    }
 
     private final URI uri;
 
@@ -226,7 +225,7 @@ public abstract class WebSocketClientHandshaker {
             setActualSubprotocol(expectedSubprotocol); // null or "" - we echo what the user requested
         } else if (!expectedProtocol.isEmpty() && receivedProtocol != null && !receivedProtocol.isEmpty()) {
             // We require a subprotocol and received one -> verify it
-            for (String protocol : expectedProtocol.split(",")) {
+            for (String protocol : StringUtil.split(expectedSubprotocol, ',')) {
                 if (protocol.trim().equals(receivedProtocol)) {
                     protocolValid = true;
                     setActualSubprotocol(receivedProtocol);
@@ -243,7 +242,7 @@ public abstract class WebSocketClientHandshaker {
 
         setHandshakeComplete();
 
-        final ChannelPipeline p = channel.pipeline();
+        ChannelPipeline p = channel.pipeline();
         // Remove decompressor from pipeline if its in use
         HttpContentDecompressor decompressor = p.get(HttpContentDecompressor.class);
         if (decompressor != null) {
@@ -263,38 +262,13 @@ public abstract class WebSocketClientHandshaker {
                 throw new IllegalStateException("ChannelPipeline does not contain " +
                         "a HttpRequestEncoder or HttpClientCodec");
             }
-            final HttpClientCodec codec =  (HttpClientCodec) ctx.handler();
-            // Remove the encoder part of the codec as the user may start writing frames after this method returns.
-            codec.removeOutboundHandler();
-
-            p.addAfter(ctx.name(), "ws-decoder", newWebsocketDecoder());
-
-            // Delay the removal of the decoder so the user can setup the pipeline if needed to handle
-            // WebSocketFrame messages.
-            // See https://github.com/netty/netty/issues/4533
-            channel.eventLoop().execute(new Runnable() {
-                @Override
-                public void run() {
-                    p.remove(codec);
-                }
-            });
+            p.replace(ctx.name(), "ws-decoder", newWebsocketDecoder());
         } else {
             if (p.get(HttpRequestEncoder.class) != null) {
-                // Remove the encoder part of the codec as the user may start writing frames after this method returns.
                 p.remove(HttpRequestEncoder.class);
             }
-            final ChannelHandlerContext context = ctx;
-            p.addAfter(context.name(), "ws-decoder", newWebsocketDecoder());
-
-            // Delay the removal of the decoder so the user can setup the pipeline if needed to handle
-            // WebSocketFrame messages.
-            // See https://github.com/netty/netty/issues/4533
-            channel.eventLoop().execute(new Runnable() {
-                @Override
-                public void run() {
-                    p.remove(context.handler());
-                }
-            });
+            p.replace(ctx.name(),
+                    "ws-decoder", newWebsocketDecoder());
         }
     }
 
@@ -386,7 +360,7 @@ public abstract class WebSocketClientHandshaker {
     }
 
     /**
-     * Verify the {@link FullHttpResponse} and throws a {@link WebSocketHandshakeException} if something is wrong.
+     * Verfiy the {@link FullHttpResponse} and throws a {@link WebSocketHandshakeException} if something is wrong.
      */
     protected abstract void verify(FullHttpResponse response);
 
@@ -437,60 +411,11 @@ public abstract class WebSocketClientHandshaker {
      */
     static String rawPath(URI wsURL) {
         String path = wsURL.getRawPath();
-        String query = wsURL.getRawQuery();
+        String query = wsURL.getQuery();
         if (query != null && !query.isEmpty()) {
             path = path + '?' + query;
         }
 
         return path == null || path.isEmpty() ? "/" : path;
-    }
-
-    static CharSequence websocketHostValue(URI wsURL) {
-        int port = wsURL.getPort();
-        if (port == -1) {
-            return wsURL.getHost();
-        }
-        String host = wsURL.getHost();
-        if (port == 80) {
-            return "http".equals(wsURL.getScheme())
-                    || "ws".equals(wsURL.getScheme()) ?
-                    host : NetUtil.toSocketAddressString(host, 80);
-        }
-        if (port == 443) {
-            return "https".equals(wsURL.getScheme())
-                    || "wss".equals(wsURL.getScheme()) ?
-                    host : NetUtil.toSocketAddressString(host, 443);
-        }
-
-        // if the port is not standard (80/443) its needed to add the port to the header.
-        // See http://tools.ietf.org/html/rfc6454#section-6.2
-        return NetUtil.toSocketAddressString(host, port);
-    }
-
-    static CharSequence websocketOriginValue(URI wsURL) {
-        String scheme = wsURL.getScheme();
-        final String schemePrefix;
-        int port = wsURL.getPort();
-        final int defaultPort;
-        if ("wss".equals(scheme)
-            || "https".equals(scheme)
-            || (scheme == null && port == 443)) {
-
-            schemePrefix = HTTPS_SCHEME_PREFIX;
-            defaultPort = 443;
-        } else {
-            schemePrefix = HTTP_SCHEME_PREFIX;
-            defaultPort = 80;
-        }
-
-        // Convert uri-host to lower case (by RFC 6454, chapter 4 "Origin of a URI")
-        String host = wsURL.getHost().toLowerCase(Locale.US);
-
-        if (port != defaultPort && port != -1) {
-            // if the port is not standard (80/443) its needed to add the port to the header.
-            // See http://tools.ietf.org/html/rfc6454#section-6.2
-            return schemePrefix + NetUtil.toSocketAddressString(host, port);
-        }
-        return schemePrefix + host;
     }
 }

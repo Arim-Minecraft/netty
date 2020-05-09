@@ -23,7 +23,7 @@ public class JdkLoggerFactoryTest {
 
     @Test
     public void testCreation() {
-        InternalLogger logger = JdkLoggerFactory.INSTANCE.newInstance("foo");
+        InternalLogger logger = new JdkLoggerFactory().newInstance("foo");
         assertTrue(logger instanceof JdkLogger);
         assertEquals("foo", logger.name());
     }

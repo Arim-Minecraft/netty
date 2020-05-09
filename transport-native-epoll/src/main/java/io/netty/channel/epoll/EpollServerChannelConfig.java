@@ -16,18 +16,18 @@
 package io.netty.channel.epoll;
 
 import io.netty.buffer.ByteBufAllocator;
-import io.netty.channel.ChannelException;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.MessageSizeEstimator;
 import io.netty.channel.RecvByteBufAllocator;
 import io.netty.util.NetUtil;
 
-import java.io.IOException;
+import java.net.InetAddress;
 import java.util.Map;
 
 import static io.netty.channel.ChannelOption.SO_BACKLOG;
 import static io.netty.channel.ChannelOption.SO_RCVBUF;
 import static io.netty.channel.ChannelOption.SO_REUSEADDR;
+import static io.netty.channel.epoll.EpollChannelOption.TCP_MD5SIG;;
 
 public class EpollServerChannelConfig extends EpollChannelConfig {
     protected final AbstractEpollChannel channel;
@@ -72,6 +72,10 @@ public class EpollServerChannelConfig extends EpollChannelConfig {
             setReuseAddress((Boolean) value);
         } else if (option == SO_BACKLOG) {
             setBacklog((Integer) value);
+        } else if (option == TCP_MD5SIG) {
+            @SuppressWarnings("unchecked")
+            final Map<InetAddress, byte[]> m = (Map<InetAddress, byte[]>) value;
+            ((EpollServerSocketChannel) channel).setTcpMd5Sig(m);
         } else if (option == EpollChannelOption.TCP_FASTOPEN) {
             setTcpFastopen((Integer) value);
         } else {
@@ -82,37 +86,21 @@ public class EpollServerChannelConfig extends EpollChannelConfig {
     }
 
     public boolean isReuseAddress() {
-        try {
-            return Native.isReuseAddress(channel.fd().intValue()) == 1;
-        } catch (IOException e) {
-            throw new ChannelException(e);
-        }
+        return Native.isReuseAddress(channel.fd().intValue()) == 1;
     }
 
     public EpollServerChannelConfig setReuseAddress(boolean reuseAddress) {
-        try {
-            Native.setReuseAddress(channel.fd().intValue(), reuseAddress ? 1 : 0);
-            return this;
-        } catch (IOException e) {
-            throw new ChannelException(e);
-        }
+        Native.setReuseAddress(channel.fd().intValue(), reuseAddress ? 1 : 0);
+        return this;
     }
 
     public int getReceiveBufferSize() {
-        try {
-            return channel.fd().getReceiveBufferSize();
-        } catch (IOException e) {
-            throw new ChannelException(e);
-        }
+        return channel.fd().getReceiveBufferSize();
     }
 
     public EpollServerChannelConfig setReceiveBufferSize(int receiveBufferSize) {
-        try {
-            channel.fd().setReceiveBufferSize(receiveBufferSize);
-            return this;
-        } catch (IOException e) {
-            throw new ChannelException(e);
-        }
+        channel.fd().setReceiveBufferSize(receiveBufferSize);
+        return this;
     }
 
     public int getBacklog() {

@@ -61,133 +61,133 @@ package io.netty.channel.epoll;
  */
 public final class EpollTcpInfo {
 
-    final long[] info = new long[32];
+    final int[] info = new int[32];
 
     public int state() {
-        return (int) info[0];
+        return info[0] & 0xFF;
     }
 
     public int caState() {
-        return (int) info[1];
+        return info[1] & 0xFF;
     }
 
     public int retransmits() {
-        return (int) info[2];
+        return info[2] & 0xFF;
     }
 
     public int probes() {
-        return (int) info[3];
+        return info[3] & 0xFF;
     }
 
     public int backoff() {
-        return (int) info[4];
+        return info[4] & 0xFF;
     }
 
     public int options() {
-        return (int) info[5];
+        return info[5] & 0xFF;
     }
 
     public int sndWscale() {
-        return (int) info[6];
+        return info[6] & 0xFF;
     }
 
     public int rcvWscale() {
-        return (int) info[7];
+        return info[7] & 0xFF;
     }
 
     public long rto() {
-        return info[8];
+        return info[8] & 0xFFFFFFFFL;
     }
 
     public long ato() {
-        return info[9];
+        return info[9] & 0xFFFFFFFFL;
     }
 
     public long sndMss() {
-        return info[10];
+        return info[10] & 0xFFFFFFFFL;
     }
 
     public long rcvMss() {
-        return info[11];
+        return info[11] & 0xFFFFFFFFL;
     }
 
     public long unacked() {
-        return info[12];
+        return info[12] & 0xFFFFFFFFL;
     }
 
     public long sacked() {
-        return info[13];
+        return info[13] & 0xFFFFFFFFL;
     }
 
     public long lost() {
-        return info[14];
+        return info[14] & 0xFFFFFFFFL;
     }
 
     public long retrans() {
-        return info[15];
+        return info[15] & 0xFFFFFFFFL;
     }
 
     public long fackets() {
-        return info[16];
+        return info[16] & 0xFFFFFFFFL;
     }
 
     public long lastDataSent() {
-        return info[17];
+        return info[17] & 0xFFFFFFFFL;
     }
 
     public long lastAckSent() {
-        return info[18];
+        return info[18] & 0xFFFFFFFFL;
     }
 
     public long lastDataRecv() {
-        return info[19];
+        return info[19] & 0xFFFFFFFFL;
     }
 
     public long lastAckRecv() {
-        return info[20];
+        return info[20] & 0xFFFFFFFFL;
     }
 
     public long pmtu() {
-        return info[21];
+        return info[21] & 0xFFFFFFFFL;
     }
 
     public long rcvSsthresh() {
-        return info[22];
+        return info[22] & 0xFFFFFFFFL;
     }
 
     public long rtt() {
-        return info[23];
+        return info[23] & 0xFFFFFFFFL;
     }
 
     public long rttvar() {
-        return info[24];
+        return info[24] & 0xFFFFFFFFL;
     }
 
     public long sndSsthresh() {
-        return info[25];
+        return info[25] & 0xFFFFFFFFL;
     }
 
     public long sndCwnd() {
-        return info[26];
+        return info[26] & 0xFFFFFFFFL;
     }
 
     public long advmss() {
-        return info[27];
+        return info[27] & 0xFFFFFFFFL;
     }
 
     public long reordering() {
-        return info[28];
+        return info[28] & 0xFFFFFFFFL;
     }
 
     public long rcvRtt() {
-        return info[29];
+        return info[29] & 0xFFFFFFFFL;
     }
 
     public long rcvSpace() {
-        return info[30];
+        return info[30] & 0xFFFFFFFFL;
     }
 
     public long totalRetrans() {
-        return info[31];
+        return info[31] & 0xFFFFFFFFL;
     }
 }

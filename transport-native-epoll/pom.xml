@@ -19,18 +19,12 @@
   <parent>
     <groupId>io.netty</groupId>
     <artifactId>netty-parent</artifactId>
-    <version>4.0.57.Final-SNAPSHOT</version>
+    <version>4.0.34.Final</version>
   </parent>
   <artifactId>netty-transport-native-epoll</artifactId>
 
   <name>Netty/Transport/Native/Epoll</name>
   <packaging>jar</packaging>
-
-  <properties>
-    <jni.compiler.args.ldflags>LDFLAGS=-Wl,--no-as-needed -lrt</jni.compiler.args.ldflags>
-    <!-- Needed by the native transport as we need the memoryAddress of the ByteBuffer -->
-    <argLine.java9.extras>--add-exports java.base/sun.security.x509=ALL-UNNAMED --add-opens=java.base/java.nio=ALL-UNNAMED</argLine.java9.extras>
-  </properties>
 
   <dependencies>
     <dependency>
@@ -56,7 +50,7 @@
     </dependency>
     <dependency>
       <groupId>${project.groupId}</groupId>
-      <artifactId>${tcnative.artifactId}</artifactId>
+      <artifactId>netty-tcnative</artifactId>
       <classifier>${tcnative.classifier}</classifier>
       <scope>test</scope>
     </dependency>
@@ -71,16 +65,16 @@
           <execution>
             <id>build-native-lib</id>
             <configuration>
-              <name>netty_transport_native_epoll_${os.detected.arch}</name>
               <nativeSourceDirectory>${project.basedir}/src/main/c</nativeSourceDirectory>
               <libDirectory>${project.build.outputDirectory}</libDirectory>
               <!-- We use Maven's artifact classifier instead.
                    This hack will make the hawtjni plugin to put the native library
                    under 'META-INF/native' rather than 'META-INF/native/${platform}'. -->
               <platform>.</platform>
+              <forceConfigure>true</forceConfigure>
+              <forceAutogen>true</forceAutogen>
               <configureArgs>
-                <arg>${jni.compiler.args.ldflags}</arg>
-                <arg>${jni.compiler.args.cflags}</arg>
+                <arg>${jni.compiler.args}</arg>
               </configureArgs>
             </configuration>
             <goals>
@@ -111,16 +105,6 @@
               <goal>jar</goal>
             </goals>
             <configuration>
-              <archive>
-                <manifest>
-                  <addDefaultImplementationEntries>true</addDefaultImplementationEntries>
-                </manifest>
-                <manifestEntries>
-                  <Bundle-NativeCode>META-INF/native/libnetty_transport_native_epoll_${os.detected.arch}.so; osname=Linux; processor=${os.detected.arch},*</Bundle-NativeCode>
-                </manifestEntries>
-                <index>true</index>
-                <manifestFile>${project.build.outputDirectory}/META-INF/MANIFEST.MF</manifestFile>
-              </archive>
               <classifier>${epoll.classifier}</classifier>
             </configuration>
           </execution>
@@ -198,11 +182,11 @@
               <goal>regex-property</goal>
             </goals>
             <configuration>
-              <name>jni.compiler.args.cflags</name>
+              <name>jni.compiler.args</name>
               <value>${linux.sendmmsg.support}${glibc.sendmmsg.support}</value>
               <!-- If glibc and linux kernel are both not sufficient...then define the CFLAGS -->
               <regex>.*IO_NETTY_SENDMSSG_NOT_FOUND.*</regex>
-              <replacement>CFLAGS=-O3 -DIO_NETTY_SENDMMSG_NOT_FOUND -Werror -fno-omit-frame-pointer -Wunused-variable</replacement>
+              <replacement>CFLAGS=-O3 -DIO_NETTY_SENDMMSG_NOT_FOUND -Werror</replacement>
               <failIfNoMatch>false</failIfNoMatch>
             </configuration>
           </execution>
@@ -214,11 +198,11 @@
               <goal>regex-property</goal>
             </goals>
             <configuration>
-              <name>jni.compiler.args.cflags</name>
-              <value>${jni.compiler.args.cflags}</value>
+              <name>jni.compiler.args</name>
+              <value>${jni.compiler.args}</value>
               <!-- If glibc and linux kernel are both not sufficient...then define the CFLAGS -->
               <regex>^((?!CFLAGS=).)*$</regex>
-              <replacement>CFLAGS=-O3 -Werror -fno-omit-frame-pointer -Wunused-variable</replacement>
+              <replacement>CFLAGS=-O3 -Werror</replacement>
               <failIfNoMatch>false</failIfNoMatch>
             </configuration>
           </execution>

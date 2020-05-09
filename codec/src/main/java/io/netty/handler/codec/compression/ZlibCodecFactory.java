@@ -103,7 +103,7 @@ public final class ZlibCodecFactory {
         if (PlatformDependent.javaVersion() < 7 || noJdkZlibDecoder) {
             return new JZlibDecoder();
         } else {
-            return new JdkZlibDecoder(true);
+            return new JdkZlibDecoder();
         }
     }
 
@@ -111,7 +111,7 @@ public final class ZlibCodecFactory {
         if (PlatformDependent.javaVersion() < 7 || noJdkZlibDecoder) {
             return new JZlibDecoder(wrapper);
         } else {
-            return new JdkZlibDecoder(wrapper, true);
+            return new JdkZlibDecoder(wrapper);
         }
     }
 

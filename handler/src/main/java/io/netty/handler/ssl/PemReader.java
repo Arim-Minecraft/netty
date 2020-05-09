@@ -26,7 +26,6 @@ import io.netty.util.internal.logging.InternalLoggerFactory;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -57,25 +56,11 @@ final class PemReader {
             Pattern.CASE_INSENSITIVE);
 
     static ByteBuf[] readCertificates(File file) throws CertificateException {
-        try {
-            InputStream in = new FileInputStream(file);
-
-            try {
-                return readCertificates(in);
-            } finally {
-                safeClose(in);
-            }
-        } catch (FileNotFoundException e) {
-            throw new CertificateException("could not find certificate file: " + file);
-        }
-    }
-
-    static ByteBuf[] readCertificates(InputStream in) throws CertificateException {
         String content;
         try {
-            content = readContent(in);
+            content = readContent(file);
         } catch (IOException e) {
-            throw new CertificateException("failed to read certificate input stream", e);
+            throw new CertificateException("failed to read a file: " + file, e);
         }
 
         List<ByteBuf> certs = new ArrayList<ByteBuf>();
@@ -95,38 +80,23 @@ final class PemReader {
         }
 
         if (certs.isEmpty()) {
-            throw new CertificateException("found no certificates in input stream");
+            throw new CertificateException("found no certificates: " + file);
         }
 
         return certs.toArray(new ByteBuf[certs.size()]);
     }
 
     static ByteBuf readPrivateKey(File file) throws KeyException {
-        try {
-            InputStream in = new FileInputStream(file);
-
-            try {
-                return readPrivateKey(in);
-            } finally {
-                safeClose(in);
-            }
-        } catch (FileNotFoundException e) {
-            throw new KeyException("could not find key file: " + file);
-        }
-    }
-
-    static ByteBuf readPrivateKey(InputStream in) throws KeyException {
         String content;
         try {
-            content = readContent(in);
+            content = readContent(file);
         } catch (IOException e) {
-            throw new KeyException("failed to read key input stream", e);
+            throw new KeyException("failed to read a file: " + file, e);
         }
 
         Matcher m = KEY_PATTERN.matcher(content);
         if (!m.find()) {
-            throw new KeyException("could not find a PKCS #8 private key in input stream" +
-                    " (see http://netty.io/wiki/sslcontextbuilder-and-private-key.html for more information)");
+            throw new KeyException("found no private key: " + file);
         }
 
         ByteBuf base64 = Unpooled.copiedBuffer(m.group(1), CharsetUtil.US_ASCII);
@@ -135,7 +105,8 @@ final class PemReader {
         return der;
     }
 
-    private static String readContent(InputStream in) throws IOException {
+    private static String readContent(File file) throws IOException {
+        InputStream in = new FileInputStream(file);
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         try {
             byte[] buf = new byte[8192];
@@ -148,6 +119,7 @@ final class PemReader {
             }
             return out.toString(CharsetUtil.US_ASCII.name());
         } finally {
+            safeClose(in);
             safeClose(out);
         }
     }

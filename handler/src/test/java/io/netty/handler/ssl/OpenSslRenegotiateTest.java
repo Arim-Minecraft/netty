@@ -1,5 +1,5 @@
 /*
- * Copyright 2017 The Netty Project
+ * Copyright 2015 The Netty Project
  *
  * The Netty Project licenses this file to you under the Apache License,
  * version 2.0 (the "License"); you may not use this file except in compliance
@@ -15,32 +15,18 @@
  */
 package io.netty.handler.ssl;
 
-import org.junit.BeforeClass;
-
-import java.util.concurrent.atomic.AtomicReference;
-
-import javax.net.ssl.SSLException;
-
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
-import static org.junit.Assume.assumeTrue;
+import org.junit.Assume;
 
 public class OpenSslRenegotiateTest extends RenegotiateTest {
 
-    @BeforeClass
-    public static void checkOpenSsl() {
-        assumeTrue(OpenSsl.isAvailable());
+    @Override
+    public void testRenegotiateServer() throws Throwable {
+        Assume.assumeTrue(OpenSsl.isAvailable());
+        super.testRenegotiateServer();
     }
 
     @Override
     protected SslProvider serverSslProvider() {
         return SslProvider.OPENSSL;
-    }
-
-    protected void verifyResult(AtomicReference<Throwable> error) throws Throwable {
-        Throwable cause = error.get();
-        // Renegotation is not supported by the OpenSslEngine.
-        assertThat(cause, is(instanceOf(SSLException.class)));
     }
 }

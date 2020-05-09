@@ -62,7 +62,7 @@ public class SwappedByteBuf extends ByteBuf {
 
     @Override
     public ByteBuf unwrap() {
-        return buf;
+        return buf.unwrap();
     }
 
     @Override

@@ -15,8 +15,6 @@
  */
 package io.netty.handler.codec.http;
 
-import io.netty.handler.codec.http.cookie.ClientCookieDecoder;
-
 /**
  * Encodes client-side {@link Cookie}s into an HTTP header value.  This encoder can encode
  * the HTTP cookie version 0, 1, and 2.

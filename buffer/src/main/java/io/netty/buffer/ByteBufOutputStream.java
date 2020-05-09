@@ -73,45 +73,48 @@ public class ByteBufOutputStream extends OutputStream implements DataOutput {
 
     @Override
     public void write(int b) throws IOException {
-        buffer.writeByte(b);
+        buffer.writeByte((byte) b);
     }
 
     @Override
     public void writeBoolean(boolean v) throws IOException {
-        buffer.writeBoolean(v);
+        write(v? (byte) 1 : (byte) 0);
     }
 
     @Override
     public void writeByte(int v) throws IOException {
-        buffer.writeByte(v);
+        write(v);
     }
 
     @Override
     public void writeBytes(String s) throws IOException {
-        ByteBufUtil.writeAscii(buffer, s);
+        int len = s.length();
+        for (int i = 0; i < len; i ++) {
+            write((byte) s.charAt(i));
+        }
     }
 
     @Override
     public void writeChar(int v) throws IOException {
-        buffer.writeChar(v);
+        writeShort((short) v);
     }
 
     @Override
     public void writeChars(String s) throws IOException {
         int len = s.length();
         for (int i = 0 ; i < len ; i ++) {
-            buffer.writeChar(s.charAt(i));
+            writeChar(s.charAt(i));
         }
     }
 
     @Override
     public void writeDouble(double v) throws IOException {
-        buffer.writeDouble(v);
+        writeLong(Double.doubleToLongBits(v));
     }
 
     @Override
     public void writeFloat(float v) throws IOException {
-        buffer.writeFloat(v);
+        writeInt(Float.floatToIntBits(v));
     }
 
     @Override

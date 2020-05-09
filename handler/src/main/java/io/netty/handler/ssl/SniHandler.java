@@ -21,8 +21,6 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.ByteToMessageDecoder;
 import io.netty.util.CharsetUtil;
 import io.netty.util.DomainNameMapping;
-import io.netty.util.ReferenceCountUtil;
-import io.netty.util.internal.PlatformDependent;
 import io.netty.util.internal.logging.InternalLogger;
 import io.netty.util.internal.logging.InternalLoggerFactory;
 
@@ -105,17 +103,17 @@ public class SniHandler extends ByteToMessageDecoder {
                             final int len = SslUtils.getEncryptedPacketLength(in, readerIndex);
 
                             // Not an SSL/TLS packet
-                            if (len == SslUtils.NOT_ENCRYPTED) {
+                            if (len == -1) {
                                 handshakeFailed = true;
                                 NotSslRecordException e = new NotSslRecordException(
                                         "not an SSL/TLS record: " + ByteBufUtil.hexDump(in));
                                 in.skipBytes(in.readableBytes());
+                                ctx.fireExceptionCaught(e);
 
-                                SslUtils.notifyHandshakeFailure(ctx, e, true);
-                                throw e;
+                                SslUtils.notifyHandshakeFailure(ctx, e);
+                                return;
                             }
-                            if (len == SslUtils.NOT_ENOUGH_DATA ||
-                                    writerIndex - readerIndex - SslUtils.SSL_RECORD_HEADER_LENGTH < len) {
+                            if (writerIndex - readerIndex - SslUtils.SSL_RECORD_HEADER_LENGTH < len) {
                                 // Not enough data
                                 return;
                             }
@@ -217,12 +215,8 @@ public class SniHandler extends ByteToMessageDecoder {
                                             final String hostname = in.toString(offset, serverNameLength,
                                                                                 CharsetUtil.UTF_8);
 
-                                            try {
-                                                select(ctx, IDN.toASCII(hostname,
-                                                                        IDN.ALLOW_UNASSIGNED).toLowerCase(Locale.US));
-                                            } catch (Throwable t) {
-                                                PlatformDependent.throwException(t);
-                                            }
+                                            select(ctx, IDN.toASCII(hostname,
+                                                                    IDN.ALLOW_UNASSIGNED).toLowerCase(Locale.US));
                                             return;
                                         } else {
                                             // invalid enum value
@@ -239,10 +233,7 @@ public class SniHandler extends ByteToMessageDecoder {
                             break loop;
                     }
                 }
-            } catch (NotSslRecordException e) {
-                // Just rethrow as in this case we also closed the channel and this is consistent with SslHandler.
-                throw e;
-            } catch (Exception e) {
+            } catch (Throwable e) {
                 // unexpected encoding, ignore sni and use default
                 if (logger.isDebugEnabled()) {
                     logger.debug("Unexpected client hello packet: " + ByteBufUtil.hexDump(in), e);
@@ -254,22 +245,10 @@ public class SniHandler extends ByteToMessageDecoder {
     }
 
     private void select(ChannelHandlerContext ctx, String hostname) {
-        SslHandler sslHandler = null;
         SslContext selectedContext = mapping.map(hostname);
         selection = new Selection(selectedContext, hostname);
-        try {
-            sslHandler = selection.context.newHandler(ctx.alloc());
-            ctx.pipeline().replace(this, SslHandler.class.getName(), sslHandler);
-        } catch (Throwable cause) {
-            selection = EMPTY_SELECTION;
-            // Since the SslHandler was not inserted into the pipeline the ownership of the SSLEngine was not
-            // transferred to the SslHandler.
-            // See https://github.com/netty/netty/issues/5678
-            if (sslHandler != null) {
-                ReferenceCountUtil.safeRelease(sslHandler.engine());
-            }
-            PlatformDependent.throwException(cause);
-        }
+        SslHandler sslHandler = selectedContext.newHandler(ctx.alloc());
+        ctx.pipeline().replace(this, SslHandler.class.getName(), sslHandler);
     }
 
     private static final class Selection {

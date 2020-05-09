@@ -20,9 +20,9 @@ import io.netty.buffer.ByteBufProcessor;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelPipeline;
+import io.netty.channel.socket.ChannelInputShutdownEvent;
 import io.netty.handler.codec.ByteToMessageDecoder;
 import io.netty.handler.codec.DecoderResult;
-import io.netty.handler.codec.PrematureChannelClosureException;
 import io.netty.handler.codec.TooLongFrameException;
 import io.netty.util.internal.AppendableCharSequence;
 
@@ -162,12 +162,7 @@ public abstract class HttpObjectDecoder extends ByteToMessageDecoder {
     protected HttpObjectDecoder(
             int maxInitialLineLength, int maxHeaderSize, int maxChunkSize,
             boolean chunkedSupported, boolean validateHeaders) {
-        this(maxInitialLineLength, maxHeaderSize, maxChunkSize, chunkedSupported, validateHeaders, 128);
-    }
 
-    protected HttpObjectDecoder(
-            int maxInitialLineLength, int maxHeaderSize, int maxChunkSize,
-            boolean chunkedSupported, boolean validateHeaders, int initialBufferSize) {
         if (maxInitialLineLength <= 0) {
             throw new IllegalArgumentException(
                     "maxInitialLineLength must be a positive integer: " +
@@ -183,12 +178,12 @@ public abstract class HttpObjectDecoder extends ByteToMessageDecoder {
                     "maxChunkSize must be a positive integer: " +
                             maxChunkSize);
         }
-        AppendableCharSequence seq = new AppendableCharSequence(initialBufferSize);
-        lineParser = new LineParser(seq, maxInitialLineLength);
-        headerParser = new HeaderParser(seq, maxHeaderSize);
         this.maxChunkSize = maxChunkSize;
         this.chunkedSupported = chunkedSupported;
         this.validateHeaders = validateHeaders;
+        AppendableCharSequence seq = new AppendableCharSequence(128);
+        lineParser = new LineParser(seq, maxInitialLineLength);
+        headerParser = new HeaderParser(seq, maxHeaderSize);
     }
 
     @Override
@@ -401,32 +396,17 @@ public abstract class HttpObjectDecoder extends ByteToMessageDecoder {
 
     @Override
     protected void decodeLast(ChannelHandlerContext ctx, ByteBuf in, List<Object> out) throws Exception {
-        super.decodeLast(ctx, in, out);
+        decode(ctx, in, out);
 
-        if (resetRequested) {
-            // If a reset was requested by decodeLast() we need to do it now otherwise we may produce a
-            // LastHttpContent while there was already one.
-            resetNow();
-        }
         // Handle the last unfinished message.
         if (message != null) {
             boolean chunked = HttpHeaders.isTransferEncodingChunked(message);
             if (currentState == State.READ_VARIABLE_LENGTH_CONTENT && !in.isReadable() && !chunked) {
                 // End of connection.
                 out.add(LastHttpContent.EMPTY_LAST_CONTENT);
-                resetNow();
+                reset();
                 return;
             }
-
-            if (currentState == State.READ_HEADER) {
-                // If we are still in the state of reading headers we need to create a new invalid message that
-                // signals that the connection was closed before we received the headers.
-                out.add(invalidMessage(Unpooled.EMPTY_BUFFER,
-                        new PrematureChannelClosureException("Connection closed before received headers")));
-                resetNow();
-                return;
-            }
-
             // Check if the closure of the connection signifies the end of the content.
             boolean prematureClosure;
             if (isDecodingRequest() || chunked) {
@@ -438,17 +418,22 @@ public abstract class HttpObjectDecoder extends ByteToMessageDecoder {
                 // connection, so it is perfectly fine.
                 prematureClosure = contentLength() > 0;
             }
+            resetNow();
 
             if (!prematureClosure) {
                 out.add(LastHttpContent.EMPTY_LAST_CONTENT);
             }
-            resetNow();
         }
     }
 
     @Override
     public void userEventTriggered(ChannelHandlerContext ctx, Object evt) throws Exception {
-        if (evt instanceof HttpExpectationFailedEvent) {
+        if (evt instanceof ChannelInputShutdownEvent) {
+            // The decodeLast method is invoked when a channelInactive event is encountered.
+            // This method is responsible for ending requests in some situations and must be called
+            // when the input has been shutdown.
+            super.channelInactive(ctx);
+        } else if (evt instanceof HttpExpectationFailedEvent) {
             switch (currentState) {
             case READ_FIXED_LENGTH_CONTENT:
             case READ_VARIABLE_LENGTH_CONTENT:
@@ -479,25 +464,11 @@ public abstract class HttpObjectDecoder extends ByteToMessageDecoder {
             }
 
             switch (code) {
-                case 204: case 304:
+                case 204: case 205: case 304:
                     return true;
             }
         }
         return false;
-    }
-
-    /**
-     * Returns true if the server switched to a different protocol than HTTP/1.0 or HTTP/1.1, e.g. HTTP/2 or Websocket.
-     * Returns false if the upgrade happened in a different layer, e.g. upgrade from HTTP/1.1 to HTTP/1.1 over TLS.
-     */
-    protected boolean isSwitchingToNonHttp1Protocol(HttpResponse msg) {
-        if (msg.getStatus().code() != HttpResponseStatus.SWITCHING_PROTOCOLS.code()) {
-            return false;
-        }
-        String newProtocol = msg.headers().get(HttpHeaders.Names.UPGRADE);
-        return newProtocol == null ||
-                !newProtocol.contains(HttpVersion.HTTP_1_0.text()) &&
-                !newProtocol.contains(HttpVersion.HTTP_1_1.text());
     }
 
     /**
@@ -519,13 +490,12 @@ public abstract class HttpObjectDecoder extends ByteToMessageDecoder {
         trailer = null;
         if (!isDecodingRequest()) {
             HttpResponse res = (HttpResponse) message;
-            if (res != null && isSwitchingToNonHttp1Protocol(res)) {
+            if (res != null && res.getStatus().code() == 101) {
                 currentState = State.UPGRADED;
                 return;
             }
         }
 
-        resetRequested = false;
         currentState = State.SKIP_CONTROL_CHARS;
     }
 
@@ -590,11 +560,11 @@ public abstract class HttpObjectDecoder extends ByteToMessageDecoder {
             do {
                 char firstChar = line.charAt(0);
                 if (name != null && (firstChar == ' ' || firstChar == '\t')) {
-                    //please do not make one line from below code
-                    //as it breaks +XX:OptimizeStringConcat optimization
-                    String trimmedLine = line.toString().trim();
-                    String valueStr = String.valueOf(value);
-                    value = valueStr + ' ' + trimmedLine;
+                    StringBuilder buf = new StringBuilder(value.length() + line.length() + 1);
+                    buf.append(value)
+                       .append(' ')
+                       .append(line.toString().trim());
+                    value = buf.toString();
                 } else {
                     if (name != null) {
                         headers.add(name, value);
@@ -656,11 +626,14 @@ public abstract class HttpObjectDecoder extends ByteToMessageDecoder {
                     List<String> current = trailer.trailingHeaders().getAll(lastHeader);
                     if (!current.isEmpty()) {
                         int lastPos = current.size() - 1;
-                        //please do not make one line from below code
-                        //as it breaks +XX:OptimizeStringConcat optimization
                         String lineTrimmed = line.toString().trim();
-                        String currentLastPos = current.get(lastPos);
-                        current.set(lastPos, currentLastPos + lineTrimmed);
+                        CharSequence currentLastPos = current.get(lastPos);
+                        StringBuilder b = new StringBuilder(currentLastPos.length() + lineTrimmed.length());
+                        b.append(currentLastPos)
+                         .append(lineTrimmed);
+                        current.set(lastPos, b.toString());
+                    } else {
+                        // Content-Length, Transfer-Encoding, or Trailer
                     }
                 } else {
                     splitHeader(line);
@@ -817,7 +790,7 @@ public abstract class HttpObjectDecoder extends ByteToMessageDecoder {
 
         @Override
         public boolean process(byte value) throws Exception {
-            char nextByte = (char) (value & 0xFF);
+            char nextByte = (char) value;
             if (nextByte == HttpConstants.CR) {
                 return true;
             }

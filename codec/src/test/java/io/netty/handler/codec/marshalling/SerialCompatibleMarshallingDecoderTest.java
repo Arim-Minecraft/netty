@@ -23,7 +23,7 @@ public class SerialCompatibleMarshallingDecoderTest extends AbstractCompatibleMa
 
     @Override
     protected MarshallerFactory createMarshallerFactory() {
-        return Marshalling.getProvidedMarshallerFactory(SERIAL_FACTORY);
+        return Marshalling.getProvidedMarshallerFactory("serial");
     }
 
     @Override

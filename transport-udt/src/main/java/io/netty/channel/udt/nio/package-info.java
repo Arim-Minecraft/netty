@@ -16,9 +16,7 @@
 /**
  * UDT Transport for NIO Channels.
  * <p>
- * @see io.netty.example.udt
- *
- * @deprecated The UDT transport is no longer maintained.
+ * @see /netty/example/src/main/java/io/netty/example/udt
  */
 package io.netty.channel.udt.nio;
 

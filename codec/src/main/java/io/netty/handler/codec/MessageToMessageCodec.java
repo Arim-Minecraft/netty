@@ -40,7 +40,7 @@ import java.util.List;
  *             out.add(msg.longValue());
  *         }
  *
- *         {@code @Override}
+ *         {@code @Overrride}
  *         public {@link Integer} encode({@link ChannelHandlerContext} ctx, {@link Long} msg, List&lt;Object&gt; out)
  *                 throws {@link Exception} {
  *             out.add(msg.intValue());

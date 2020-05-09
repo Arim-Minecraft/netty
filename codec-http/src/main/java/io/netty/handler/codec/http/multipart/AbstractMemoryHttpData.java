@@ -100,10 +100,12 @@ public abstract class AbstractMemoryHttpData extends AbstractHttpData {
                 byteBuf = buffer;
             } else if (byteBuf instanceof CompositeByteBuf) {
                 CompositeByteBuf cbb = (CompositeByteBuf) byteBuf;
-                cbb.addComponent(true, buffer);
+                cbb.addComponent(buffer);
+                cbb.writerIndex(cbb.writerIndex() + buffer.readableBytes());
             } else {
                 CompositeByteBuf cbb = compositeBuffer(Integer.MAX_VALUE);
-                cbb.addComponents(true, byteBuf, buffer);
+                cbb.addComponents(byteBuf, buffer);
+                cbb.writerIndex(byteBuf.readableBytes() + buffer.readableBytes());
                 byteBuf = cbb;
             }
         }

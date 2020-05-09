@@ -21,7 +21,6 @@ import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.embedded.EmbeddedChannel;
-import io.netty.util.internal.SocketUtils;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -133,12 +132,12 @@ public class IpSubnetFilterTest {
         return new EmbeddedChannel(handlers) {
             @Override
             protected SocketAddress remoteAddress0() {
-                return isActive()? SocketUtils.socketAddress(ipAddress, 5421) : null;
+                return isActive()? new InetSocketAddress(ipAddress, 5421) : null;
             }
         };
     }
 
     private static InetSocketAddress newSockAddress(String ipAddress) {
-        return SocketUtils.socketAddress(ipAddress, 1234);
+        return new InetSocketAddress(ipAddress, 1234);
     }
 }

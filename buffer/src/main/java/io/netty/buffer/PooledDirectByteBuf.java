@@ -132,7 +132,8 @@ final class PooledDirectByteBuf extends PooledByteBuf<ByteBuffer> {
     }
 
     private void getBytes(int index, ByteBuffer dst, boolean internal) {
-        checkIndex(index, dst.remaining());
+        checkIndex(index);
+        int bytesToCopy = Math.min(capacity() - index, dst.remaining());
         ByteBuffer tmpBuf;
         if (internal) {
             tmpBuf = internalNioBuffer();
@@ -140,7 +141,7 @@ final class PooledDirectByteBuf extends PooledByteBuf<ByteBuffer> {
             tmpBuf = memory.duplicate();
         }
         index = idx(index);
-        tmpBuf.clear().position(index).limit(index + dst.remaining());
+        tmpBuf.clear().position(index).limit(index + bytesToCopy);
         dst.put(tmpBuf);
     }
 

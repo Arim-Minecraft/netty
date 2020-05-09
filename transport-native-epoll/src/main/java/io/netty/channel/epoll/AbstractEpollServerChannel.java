@@ -34,7 +34,6 @@ public abstract class AbstractEpollServerChannel extends AbstractEpollChannel im
     /**
      * @deprecated Use {@link #AbstractEpollServerChannel(Socket, boolean)}.
      */
-    @Deprecated
     protected AbstractEpollServerChannel(int fd) {
         this(new Socket(fd), false);
     }
@@ -52,7 +51,7 @@ public abstract class AbstractEpollServerChannel extends AbstractEpollChannel im
      */
     @Deprecated
     protected AbstractEpollServerChannel(Socket fd) {
-        this(fd, isSoErrorZero(fd));
+        this(fd, fd.getSoError() == 0);
     }
 
     protected AbstractEpollServerChannel(Socket fd, boolean active) {
@@ -165,10 +164,5 @@ public abstract class AbstractEpollServerChannel extends AbstractEpollChannel im
                 }
             }
         }
-    }
-
-    @Override
-    protected boolean doConnect(SocketAddress remoteAddress, SocketAddress localAddress) throws Exception {
-        throw new UnsupportedOperationException();
     }
 }

@@ -163,15 +163,16 @@ public class HttpPostRequestDecoder implements InterfaceHttpPostRequestDecoder {
     protected static String[] getMultipartDataBoundary(String contentType) {
         // Check if Post using "multipart/form-data; boundary=--89421926422648 [; charset=xxx]"
         String[] headerContentType = splitHeaderContentType(contentType);
-        final String multiPartHeader = HttpHeaders.Values.MULTIPART_FORM_DATA;
-        if (headerContentType[0].regionMatches(true, 0, multiPartHeader, 0 , multiPartHeader.length())) {
+        if (headerContentType[0].toLowerCase().startsWith(
+                HttpHeaders.Values.MULTIPART_FORM_DATA)) {
             int mrank;
             int crank;
-            final String boundaryHeader = HttpHeaders.Values.BOUNDARY;
-            if (headerContentType[1].regionMatches(true, 0, boundaryHeader, 0, boundaryHeader.length())) {
+            if (headerContentType[1].toLowerCase().startsWith(
+                    HttpHeaders.Values.BOUNDARY)) {
                 mrank = 1;
                 crank = 2;
-            } else if (headerContentType[2].regionMatches(true, 0, boundaryHeader, 0, boundaryHeader.length())) {
+            } else if (headerContentType[2].toLowerCase().startsWith(
+                    HttpHeaders.Values.BOUNDARY)) {
                 mrank = 2;
                 crank = 1;
             } else {
@@ -188,8 +189,8 @@ public class HttpPostRequestDecoder implements InterfaceHttpPostRequestDecoder {
                     boundary = bound.substring(1, index);
                 }
             }
-            final String charsetHeader = HttpHeaders.Values.CHARSET;
-            if (headerContentType[crank].regionMatches(true, 0, charsetHeader, 0, charsetHeader.length())) {
+            if (headerContentType[crank].toLowerCase().startsWith(
+                    HttpHeaders.Values.CHARSET)) {
                 String charset = StringUtil.substringAfter(headerContentType[crank], '=');
                 if (charset != null) {
                     return new String[] {"--" + boundary, charset};

@@ -15,14 +15,23 @@
  */
 package io.netty.channel;
 
+import org.junit.Before;
 import org.junit.Test;
-import org.mockito.Mockito;
 
 import java.util.concurrent.TimeUnit;
 
+import static org.easymock.EasyMock.*;
 import static org.junit.Assert.*;
 
 public class CompleteChannelFutureTest {
+
+    private final Channel channel = createMock(Channel.class);
+    private CompleteChannelFuture future;
+
+    @Before
+    public void init() {
+        future = new CompleteChannelFutureImpl(channel);
+    }
 
     @Test(expected = NullPointerException.class)
     public void shouldDisallowNullChannel() {
@@ -31,19 +40,15 @@ public class CompleteChannelFutureTest {
 
     @Test
     public void shouldNotDoAnythingOnRemove() throws Exception {
-        Channel channel = Mockito.mock(Channel.class);
-        CompleteChannelFuture future = new CompleteChannelFutureImpl(channel);
-        ChannelFutureListener l = Mockito.mock(ChannelFutureListener.class);
+        ChannelFutureListener l = createStrictMock(ChannelFutureListener.class);
+        replay(l);
+
         future.removeListener(l);
-        Mockito.verifyNoMoreInteractions(l);
-        Mockito.verifyZeroInteractions(channel);
+        verify(l);
     }
 
     @Test
     public void testConstantProperties() throws InterruptedException {
-        Channel channel = Mockito.mock(Channel.class);
-        CompleteChannelFuture future = new CompleteChannelFutureImpl(channel);
-
         assertSame(channel, future.channel());
         assertTrue(future.isDone());
         assertSame(future, future.await());
@@ -52,7 +57,6 @@ public class CompleteChannelFutureTest {
         assertSame(future, future.awaitUninterruptibly());
         assertTrue(future.awaitUninterruptibly(1));
         assertTrue(future.awaitUninterruptibly(1, TimeUnit.NANOSECONDS));
-        Mockito.verifyZeroInteractions(channel);
     }
 
     private static class CompleteChannelFutureImpl extends CompleteChannelFuture {

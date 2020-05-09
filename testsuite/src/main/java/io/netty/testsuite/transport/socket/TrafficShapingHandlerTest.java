@@ -258,7 +258,7 @@ public class TrafficShapingHandlerTest extends AbstractSocketTest {
     /**
      *
      * @param additionalExecutor
-     *            shall the pipeline add the handler using an additional executor
+     *            shall the pipeline add the handler using an additionnal executor
      * @param limitRead
      *            True to set Read Limit on Server side
      * @param limitWrite
@@ -323,7 +323,7 @@ public class TrafficShapingHandlerTest extends AbstractSocketTest {
         });
 
         Channel sc = sb.bind().sync().channel();
-        Channel cc = cb.connect(sc.localAddress()).sync().channel();
+        Channel cc = cb.connect().sync().channel();
 
         int totalNb = 0;
         for (int i = 1; i < multipleMessage.length; i++) {
@@ -338,7 +338,7 @@ public class TrafficShapingHandlerTest extends AbstractSocketTest {
 
         promise.await();
         Long stop = TrafficCounter.milliSecondFromNano();
-        assertTrue("Error during execution of TrafficShapping: " + promise.cause(), promise.isSuccess());
+        assertTrue("Error during exceution of TrafficShapping: " + promise.cause(), promise.isSuccess());
 
         float average = (totalNb * messageSize) / (float) (stop - start);
         logger.info("TEST: " + currentTestName + " RUN: " + currentTestRun +

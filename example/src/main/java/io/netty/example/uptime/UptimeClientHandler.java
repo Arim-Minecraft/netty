@@ -15,8 +15,10 @@
  */
 package io.netty.example.uptime;
 
+import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.ChannelHandler.Sharable;
 import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.EventLoop;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.handler.timeout.IdleState;
 import io.netty.handler.timeout.IdleStateEvent;
@@ -68,11 +70,12 @@ public class UptimeClientHandler extends SimpleChannelInboundHandler<Object> {
     public void channelUnregistered(final ChannelHandlerContext ctx) throws Exception {
         println("Sleeping for: " + UptimeClient.RECONNECT_DELAY + 's');
 
-        ctx.channel().eventLoop().schedule(new Runnable() {
+        final EventLoop loop = ctx.channel().eventLoop();
+        loop.schedule(new Runnable() {
             @Override
             public void run() {
                 println("Reconnecting to: " + UptimeClient.HOST + ':' + UptimeClient.PORT);
-                UptimeClient.connect();
+                UptimeClient.connect(UptimeClient.configureBootstrap(new Bootstrap(), loop));
             }
         }, UptimeClient.RECONNECT_DELAY, TimeUnit.SECONDS);
     }

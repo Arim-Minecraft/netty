@@ -42,7 +42,7 @@ Base64 Encoder and Decoder, which can be obtained at:
   * HOMEPAGE:
     * http://iharder.sourceforge.net/current/java/base64/
 
-This product contains a modified portion of 'Webbit', an event based
+This product contains a modified portion of 'Webbit', an event based  
 WebSocket and HTTP server, which can be obtained at:
 
   * LICENSE:
@@ -58,6 +58,15 @@ facade for Java, which can be obtained at:
   * HOMEPAGE:
     * http://www.slf4j.org/
 
+
+This product contains a modified version of Roland Kuhn's ASL2
+AbstractNodeQueue, which is based on Dmitriy Vyukov's non-intrusive MPSC queue.
+It can be obtained at:
+
+  * LICENSE:
+    * license/LICENSE.abstractnodequeue.txt (Public Domain)
+  * HOMEPAGE:
+    * https://github.com/akka/akka/blob/wip-2.2.3-for-scala-2.11/akka-actor/src/main/java/akka/dispatch/AbstractNodeQueue.java
 
 This product contains a modified portion of Nitsan Wakart's 'JCTools', Java Concurrency Tools for the JVM,
  which can be obtained at:
@@ -82,7 +91,7 @@ interchange format, which can be obtained at:
   * LICENSE:
     * license/LICENSE.protobuf.txt (New BSD License)
   * HOMEPAGE:
-    * https://github.com/google/protobuf
+    * http://code.google.com/p/protobuf/
 
 This product optionally depends on 'Bouncy Castle Crypto APIs' to generate
 a temporary self-signed X.509 certificate when the JVM does not provide the
@@ -99,7 +108,7 @@ by Google Inc, which can be obtained at:
   * LICENSE:
     * license/LICENSE.snappy.txt (New BSD License)
   * HOMEPAGE:
-    * https://github.com/google/snappy
+    * http://code.google.com/p/snappy/
 
 This product optionally depends on 'JBoss Marshalling', an alternative Java
 serialization API, which can be obtained at:
@@ -115,7 +124,7 @@ benchmarking framework, which can be obtained at:
   * LICENSE:
     * license/LICENSE.caliper.txt (Apache License 2.0)
   * HOMEPAGE:
-    * https://github.com/google/caliper
+    * http://code.google.com/p/caliper/
 
 This product optionally depends on 'Apache Commons Logging', a logging
 framework, which can be obtained at:
@@ -132,10 +141,3 @@ can be obtained at:
     * license/LICENSE.log4j.txt (Apache License 2.0)
   * HOMEPAGE:
     * http://logging.apache.org/log4j/
-
-This product contains the Maven wrapper scripts from 'Maven Wrapper', that provides an easy way to ensure a user has everything necessary to run the Maven build.
-
-  * LICENSE:
-    * license/LICENSE.mvn-wrapper.txt (Apache License 2.0)
-  * HOMEPAGE:
-    * https://github.com/takari/maven-wrapper
