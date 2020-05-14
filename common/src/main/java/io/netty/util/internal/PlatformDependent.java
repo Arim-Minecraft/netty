@@ -16,7 +16,6 @@
 package io.netty.util.internal;
 
 import io.netty.util.CharsetUtil;
-import io.netty.util.internal.chmv8.ConcurrentHashMapV8;
 import io.netty.util.internal.chmv8.LongAdderV8;
 import io.netty.util.internal.logging.InternalLogger;
 import io.netty.util.internal.logging.InternalLoggerFactory;
@@ -40,7 +39,6 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 import java.util.concurrent.atomic.AtomicLong;
@@ -56,7 +54,10 @@ import java.util.regex.Pattern;
  * {@code sun.misc.Unsafe} object.
  * <p>
  * You can disable the use of {@code sun.misc.Unsafe} if you specify
- * the system property <strong>io.netty.noUnsafe</strong>.
+ * the system property <strong>io.netty.noUnsafe</strong>. <br>
+ * <br>
+ * Changes by NetPaper: Add more logging, remove backported ConcurrentHashMap,
+ * update reflection accessing internals moved since JDK 9.
  */
 public final class PlatformDependent {
 
@@ -74,7 +75,6 @@ public final class PlatformDependent {
     private static final boolean CAN_ENABLE_TCP_NODELAY_BY_DEFAULT = !isAndroid();
 
     private static final boolean HAS_UNSAFE = hasUnsafe0();
-    private static final boolean CAN_USE_CHM_V8 = HAS_UNSAFE && JAVA_VERSION < 8;
     private static final boolean DIRECT_BUFFER_PREFERRED =
             HAS_UNSAFE && !SystemPropertyUtil.getBoolean("io.netty.noPreferDirect", false);
     private static final long MAX_DIRECT_MEMORY = maxDirectMemory0();
@@ -234,11 +234,7 @@ public final class PlatformDependent {
      * Creates a new fastest {@link ConcurrentMap} implementaion for the current platform.
      */
     public static <K, V> ConcurrentMap<K, V> newConcurrentHashMap() {
-        if (CAN_USE_CHM_V8) {
-            return new ConcurrentHashMapV8<K, V>();
-        } else {
-            return new ConcurrentHashMap<K, V>();
-        }
+        return new ConcurrentHashMap<K, V>();
     }
 
     /**
@@ -256,22 +252,14 @@ public final class PlatformDependent {
      * Creates a new fastest {@link ConcurrentMap} implementaion for the current platform.
      */
     public static <K, V> ConcurrentMap<K, V> newConcurrentHashMap(int initialCapacity) {
-        if (CAN_USE_CHM_V8) {
-            return new ConcurrentHashMapV8<K, V>(initialCapacity);
-        } else {
-            return new ConcurrentHashMap<K, V>(initialCapacity);
-        }
+        return new ConcurrentHashMap<K, V>(initialCapacity);
     }
 
     /**
      * Creates a new fastest {@link ConcurrentMap} implementaion for the current platform.
      */
     public static <K, V> ConcurrentMap<K, V> newConcurrentHashMap(int initialCapacity, float loadFactor) {
-        if (CAN_USE_CHM_V8) {
-            return new ConcurrentHashMapV8<K, V>(initialCapacity, loadFactor);
-        } else {
-            return new ConcurrentHashMap<K, V>(initialCapacity, loadFactor);
-        }
+        return new ConcurrentHashMap<K, V>(initialCapacity, loadFactor);
     }
 
     /**
@@ -279,22 +267,14 @@ public final class PlatformDependent {
      */
     public static <K, V> ConcurrentMap<K, V> newConcurrentHashMap(
             int initialCapacity, float loadFactor, int concurrencyLevel) {
-        if (CAN_USE_CHM_V8) {
-            return new ConcurrentHashMapV8<K, V>(initialCapacity, loadFactor, concurrencyLevel);
-        } else {
-            return new ConcurrentHashMap<K, V>(initialCapacity, loadFactor, concurrencyLevel);
-        }
+        return new ConcurrentHashMap<K, V>(initialCapacity, loadFactor, concurrencyLevel);
     }
 
     /**
      * Creates a new fastest {@link ConcurrentMap} implementaion for the current platform.
      */
     public static <K, V> ConcurrentMap<K, V> newConcurrentHashMap(Map<? extends K, ? extends V> map) {
-        if (CAN_USE_CHM_V8) {
-            return new ConcurrentHashMapV8<K, V>(map);
-        } else {
-            return new ConcurrentHashMap<K, V>(map);
-        }
+        return new ConcurrentHashMap<K, V>(map);
     }
 
     /**
@@ -505,11 +485,7 @@ public final class PlatformDependent {
      * Returns a new concurrent {@link Deque}.
      */
     public static <C> Deque<C> newConcurrentDeque() {
-        if (javaVersion() < 7) {
-            return new LinkedBlockingDeque<C>();
-        } else {
-            return new ConcurrentLinkedDeque<C>();
-        }
+        return new ConcurrentLinkedDeque<C>();
     }
 
     private static boolean isAndroid0() {
@@ -698,8 +674,10 @@ public final class PlatformDependent {
             boolean hasUnsafe = PlatformDependent0.hasUnsafe();
             logger.debug("sun.misc.Unsafe: {}", hasUnsafe ? "available" : "unavailable");
             return hasUnsafe;
-        } catch (Throwable ignored) {
+        } catch (Throwable t) {
             // Probably failed to initialize PlatformDependent0.
+            // NetPaper: Don't swallow error
+            logger.trace("PlatformDependent0#hasUnsafe failed because of", t);
             return false;
         }
     }
@@ -716,14 +694,20 @@ public final class PlatformDependent {
         long maxDirectMemory = 0;
         try {
             // Try to get from sun.misc.VM.maxDirectMemory() which should be most accurate.
-            Class<?> vmClass = Class.forName("sun.misc.VM", true, getSystemClassLoader());
+            // NetPaper: sun.misc.VM changed to jdk.internal.misc.VM since JDK 9
+            Class<?> vmClass = Class.forName("jdk.internal.misc.VM", true, getSystemClassLoader());
             Method m = vmClass.getDeclaredMethod("maxDirectMemory");
+            m.setAccessible(true);
             maxDirectMemory = ((Number) m.invoke(null)).longValue();
-        } catch (Throwable ignored) {
-            // Ignore
+
+        } catch (Throwable t) {
+            // NetPaper: Don't swallow error
+            logger.debug("jdk.internal.misc.VM.maxDirectMemory reflection failed because of ", t);
         }
 
         if (maxDirectMemory > 0) {
+            // NetPaper: Print maxDirectMemory if successful
+            logger.trace("maxDirectMemory: {} bytes", maxDirectMemory);
             return maxDirectMemory;
         }
 

@@ -32,7 +32,10 @@ import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import static io.netty.util.internal.ObjectUtil.checkNotNull;
 
 /**
- * The {@link PlatformDependent} operations which requires access to {@code sun.misc.*}.
+ * The {@link PlatformDependent} operations which requires access to {@code sun.misc.*}. <br>
+ * <br>
+ * Changes by NetPaper: Add more logging, remove outdated Cleaner0 which referenced sun.misc.Cleaner
+ * by replacing with direct invocation of {@link Unsafe#invokeCleaner(ByteBuffer)}.
  */
 final class PlatformDependent0 {
 
@@ -50,58 +53,52 @@ final class PlatformDependent0 {
     private static final boolean UNALIGNED;
 
     static {
-        ByteBuffer direct = ByteBuffer.allocateDirect(1);
-        Field addressField;
-        try {
-            addressField = Buffer.class.getDeclaredField("address");
-            addressField.setAccessible(true);
-            if (addressField.getLong(ByteBuffer.allocate(1)) != 0) {
-                // A heap buffer must have 0 address.
-                addressField = null;
-            } else {
-                if (addressField.getLong(direct) == 0) {
-                    // A direct buffer must have non-zero address.
-                    addressField = null;
-                }
-            }
-        } catch (Throwable t) {
-            // Failed to access the address field.
-            addressField = null;
-        }
-        logger.debug("java.nio.Buffer.address: {}", addressField != null? "available" : "unavailable");
-
         Unsafe unsafe;
-        if (addressField != null) {
+        Field addressField = null;
+        try {
+            Field unsafeField = Unsafe.class.getDeclaredField("theUnsafe");
+            // We always want to try using Unsafe as the access still works on java9 as well and
+            // we need it for out native-transports and many optimizations.
+            unsafeField.setAccessible(true);
+            unsafe = (Unsafe) unsafeField.get(null);
+            logger.debug("sun.misc.Unsafe.theUnsafe: available");
+        } catch (IllegalAccessException | NoSuchFieldException | SecurityException ex) {
+            logger.debug("sun.misc.Unsafe.theUnsafe: unavailable", ex);
+            unsafe = null;
+        }
+        if (unsafe != null) {
+            ByteBuffer direct = ByteBuffer.allocateDirect(1);
             try {
-                Field unsafeField = Unsafe.class.getDeclaredField("theUnsafe");
-                unsafeField.setAccessible(true);
-                unsafe = (Unsafe) unsafeField.get(null);
-                logger.debug("sun.misc.Unsafe.theUnsafe: {}", unsafe != null ? "available" : "unavailable");
+                addressField = Buffer.class.getDeclaredField("address");
+                // Use Unsafe to read value of the address field. This way it will not fail on JDK9+ which
+                // will forbid changing the access level via reflection.
+                final long offset = unsafe.objectFieldOffset(addressField);
+                final long address = unsafe.getLong(direct, offset);
 
-                // Ensure the unsafe supports all necessary methods to work around the mistake in the latest OpenJDK.
-                // https://github.com/netty/netty/issues/1061
-                // http://www.mail-archive.com/jdk6-dev@openjdk.java.net/msg00698.html
-                try {
-                    if (unsafe != null) {
-                        unsafe.getClass().getDeclaredMethod(
-                                "copyMemory", Object.class, long.class, Object.class, long.class, long.class);
-                        logger.debug("sun.misc.Unsafe.copyMemory: available");
-                    }
-                } catch (NoSuchMethodError t) {
-                    logger.debug("sun.misc.Unsafe.copyMemory: unavailable");
-                    throw t;
-                } catch (NoSuchMethodException e) {
-                    logger.debug("sun.misc.Unsafe.copyMemory: unavailable");
-                    throw e;
+                // if direct really is a direct buffer, address will be non-zero
+                if (address == 0) {
+                    addressField = null;
+                    logger.debug("java.nio.Buffer.address: unavailable since address of direct buffer = 0");
                 }
-            } catch (Throwable cause) {
-                // Unsafe.copyMemory(Object, long, Object, long, long) unavailable.
-                unsafe = null;
+            } catch (NoSuchFieldException | SecurityException ex) {
+                logger.debug("java.nio.Buffer.address: unavailable", ex);
             }
-        } else {
+        }
+        if (addressField == null) {
             // If we cannot access the address of a direct buffer, there's no point of using unsafe.
             // Let's just pretend unsafe is unavailable for overall simplicity.
             unsafe = null;
+        } else {
+            logger.debug("java.nio.Buffer.address: available");
+        }
+        if (unsafe != null) {
+            // There are assumptions made where ever BYTE_ARRAY_BASE_OFFSET is used (equals, hashCodeAscii, and
+            // primitive accessors) that arrayIndexScale == 1, and results are undefined if this is not the case.
+            long byteArrayIndexScale = unsafe.arrayIndexScale(byte[].class);
+            if (byteArrayIndexScale != 1) {
+                logger.debug("unsafe.arrayIndexScale is {} (expected: 1). Not using unsafe.", byteArrayIndexScale);
+                unsafe = null;
+            }
         }
 
         UNSAFE = unsafe;
@@ -118,15 +115,16 @@ final class PlatformDependent0 {
                 Method unalignedMethod = bitsClass.getDeclaredMethod("unaligned");
                 unalignedMethod.setAccessible(true);
                 unaligned = Boolean.TRUE.equals(unalignedMethod.invoke(null));
+                logger.debug("java.nio.Bits.unaligned: available, {}", unaligned);
             } catch (Throwable t) {
                 // We at least know x86 and x64 support unaligned access.
                 String arch = SystemPropertyUtil.get("os.arch", "");
                 //noinspection DynamicRegexReplaceableByCompiledPattern
                 unaligned = arch.matches("^(i[3-6]86|x86(_64)?|x64|amd64)$");
+                logger.debug("java.nio.Bits.unaligned: unavailable {}", unaligned, t);
             }
 
             UNALIGNED = unaligned;
-            logger.debug("java.nio.Bits.unaligned: {}", UNALIGNED);
             BYTE_ARRAY_BASE_OFFSET = arrayBaseOffset();
         }
     }
@@ -145,9 +143,8 @@ final class PlatformDependent0 {
     }
 
     static void freeDirectBuffer(ByteBuffer buffer) {
-        // Delegate to other class to not break on android
-        // See https://github.com/netty/netty/issues/2604
-        Cleaner0.freeDirectBuffer(buffer);
+        // NetPaper: Use Unsafe#invokeCleaner from JDK 9
+        UNSAFE.invokeCleaner(buffer);
     }
 
     static long directBufferAddress(ByteBuffer buffer) {
