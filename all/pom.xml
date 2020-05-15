@@ -18,7 +18,7 @@
 
   <modelVersion>4.0.0</modelVersion>
   <parent>
-    <groupId>io.netty</groupId>
+    <groupId>space.arim.netpaper</groupId>
     <artifactId>netty-parent</artifactId>
     <version>4.0.34.Final</version>
   </parent>
@@ -168,13 +168,14 @@
       <scope>compile</scope>
       <optional>true</optional>
     </dependency>
-    <dependency>
+    <!-- NetPaper: Comment out transport-sctyp because we don't need it and it does not build -->
+    <!-- <dependency>
       <groupId>${project.groupId}</groupId>
       <artifactId>netty-transport-sctp</artifactId>
       <version>${project.version}</version>
       <scope>compile</scope>
       <optional>true</optional>
-    </dependency>
+    </dependency> -->
     <dependency>
       <groupId>${project.groupId}</groupId>
       <artifactId>netty-transport-udt</artifactId>
@@ -182,7 +183,7 @@
       <scope>compile</scope>
       <optional>true</optional>
     </dependency>
-    <!-- NetPaper: Comment out example because we don't need it and it does not compile -->
+    <!-- NetPaper: Comment out example because we don't need it and it does not build -->
     <!-- <dependency>
       <groupId>${project.groupId}</groupId>
       <artifactId>netty-example</artifactId>
@@ -472,7 +473,7 @@
         </configuration>
         <dependencies>
           <dependency>
-            <groupId>${project.groupId}</groupId>
+            <groupId>io.netty</groupId>
             <artifactId>netty-build</artifactId>
             <version>19</version>
           </dependency>

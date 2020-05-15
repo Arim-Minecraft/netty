@@ -23,11 +23,11 @@
     <version>9</version>
   </parent>
 
-  <groupId>io.netty</groupId>
+  <!-- NetPaper: Update groupId so no one accidentally uses our artifact -->
+  <groupId>space.arim.netpaper</groupId>
   <artifactId>netty-parent</artifactId>
   <packaging>pom</packaging>
-  <!-- NetPaper: Update version -->
-  <version>4.0.34-netpaper-SNAPSHOT</version>
+  <version>4.0.34.Final</version>
 
   <name>Netty</name>
   <url>http://netty.io/</url>
@@ -221,7 +221,7 @@
   </properties>
 
   <modules>
-  	<!-- NetPaper: Ignore modules which can't compile on JDK 11 and which we don't need -->
+  	<!-- NetPaper: Ignore modules which can't build on JDK 11 and which we don't need -->
     <module>common</module>
     <module>buffer</module>
     <module>codec</module>
@@ -232,7 +232,7 @@
     <module>transport-rxtx</module>
     <!-- 
     <module>transport-sctp</module>
-     -->
+    -->
     <module>transport-udt</module>
     <module>handler</module>
     <!-- 
@@ -242,7 +242,9 @@
     <module>microbench</module> 
     -->
     <module>all</module>
+    <!-- 
     <module>tarball</module>
+    -->
   </modules>
 
   <dependencyManagement>
@@ -288,7 +290,7 @@
 
       <!-- Our own Tomcat Native fork - completely optional, used for acclerating SSL with OpenSSL. -->
       <dependency>
-        <groupId>${project.groupId}</groupId>
+        <groupId>io.netty</groupId>
         <artifactId>netty-tcnative</artifactId>
         <version>1.1.33.Fork11</version>
         <classifier>${tcnative.classifier}</classifier>
@@ -564,7 +566,7 @@
         </executions>
         <dependencies>
           <dependency>
-            <groupId>${project.groupId}</groupId>
+            <groupId>io.netty</groupId>
             <artifactId>netty-build</artifactId>
             <version>21</version>
           </dependency>
