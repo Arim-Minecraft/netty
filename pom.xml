@@ -26,7 +26,8 @@
   <groupId>io.netty</groupId>
   <artifactId>netty-parent</artifactId>
   <packaging>pom</packaging>
-  <version>4.0.34.Final</version>
+  <!-- NetPaper: Update version -->
+  <version>4.0.34-netpaper-SNAPSHOT</version>
 
   <name>Netty</name>
   <url>http://netty.io/</url>
@@ -198,10 +199,11 @@
     <jboss.marshalling.version>1.3.18.GA</jboss.marshalling.version>
     <jetty.alpnAgent.version>1.0.0.Final</jetty.alpnAgent.version>
     <jetty.alpnAgent.path>${settings.localRepository}/kr/motd/javaagent/jetty-alpn-agent/${jetty.alpnAgent.version}/jetty-alpn-agent-${jetty.alpnAgent.version}.jar</jetty.alpnAgent.path>
-    <!-- NetPaper: Remove AggressiveOpts and UseFastAccessorMethods -->
+    <!-- NetPaper: Remove AggressiveOpts and UseFastAccessorMethods, add module related arguments -->
     <argLine.common>
       -server
       -dsa -da -ea:io.netty...
+      --add-exports=java.base/jdk.internal.misc=ALL-UNNAMED
       -XX:+TieredCompilation
       -XX:+UseBiasedLocking
       -XX:+OptimizeStringConcat
@@ -219,6 +221,7 @@
   </properties>
 
   <modules>
+  	<!-- NetPaper: Ignore modules which can't compile on JDK 11 and which we don't need -->
     <module>common</module>
     <module>buffer</module>
     <module>codec</module>
@@ -227,13 +230,17 @@
     <module>codec-socks</module>
     <module>transport</module>
     <module>transport-rxtx</module>
+    <!-- 
     <module>transport-sctp</module>
+     -->
     <module>transport-udt</module>
     <module>handler</module>
+    <!-- 
     <module>example</module>
     <module>testsuite</module>
     <module>testsuite-osgi</module>
-    <module>microbench</module>
+    <module>microbench</module> 
+    -->
     <module>all</module>
     <module>tarball</module>
   </modules>
