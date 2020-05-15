@@ -16,6 +16,7 @@
 
 package io.netty.handler.ssl.util;
 
+/*
 import sun.security.x509.AlgorithmId;
 import sun.security.x509.CertificateAlgorithmId;
 import sun.security.x509.CertificateIssuerName;
@@ -27,6 +28,7 @@ import sun.security.x509.CertificateX509Key;
 import sun.security.x509.X500Name;
 import sun.security.x509.X509CertImpl;
 import sun.security.x509.X509CertInfo;
+*/
 
 import java.util.Date;
 import java.math.BigInteger;
@@ -44,6 +46,8 @@ final class OpenJdkSelfSignedCertGenerator {
 
     static String[] generate(String fqdn, KeyPair keypair, SecureRandom random, Date notBefore, Date notAfter)
             throws Exception {
+        throw new RuntimeException("Not possible in newer JDK versions");
+        /*
         PrivateKey key = keypair.getPrivate();
 
         // Prepare the information required for generating an X.509 certificate.
@@ -76,7 +80,7 @@ final class OpenJdkSelfSignedCertGenerator {
         cert.sign(key, "SHA1withRSA");
         cert.verify(keypair.getPublic());
 
-        return newSelfSignedCertificate(fqdn, key, cert);
+        return newSelfSignedCertificate(fqdn, key, cert);*/
     }
 
     private OpenJdkSelfSignedCertGenerator() { }
