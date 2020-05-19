@@ -43,6 +43,13 @@
   </organization>
 
   <licenses>
+    <!-- NetPaper: Include our own license -->
+  	<license>
+  	  <name>GNU General Public License, Version 3</name>
+  	  <url>https://www.gnu.org/licenses/</url>
+  	  <distribution>repo</distribution>
+  	  <comments>Strong copyleft license, commonly known as the GNU GPL v3</comments>
+  	</license>
     <license>
       <name>Apache License, Version 2.0</name>
       <url>http://www.apache.org/licenses/LICENSE-2.0</url>
